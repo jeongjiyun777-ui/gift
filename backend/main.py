@@ -10,7 +10,7 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise RuntimeError("backend/.env에 DATABASE_URL을 설정하세요.")npm
+    raise RuntimeError("backend/.env에 DATABASE_URL을 설정하세요.")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
