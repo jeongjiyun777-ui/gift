@@ -9,7 +9,7 @@ type Gift = {
   amount: number;
 };
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 
 export default function Home() {
@@ -170,6 +170,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
