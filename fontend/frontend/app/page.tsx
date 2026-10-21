@@ -78,7 +78,7 @@ export default function Home() {
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">축의금 조회</h1>
         <p className="mt-2 text-sm text-slate-500">
-          이름을 검색하면 해당하는 기록을 모두 보여줍니다.
+          찾으시는 분의 이름을 입력해 축의금 내역을 확인해 보세요.
         </p>
 
         <form onSubmit={handleSearch} className="mt-7 flex flex-wrap gap-2">
