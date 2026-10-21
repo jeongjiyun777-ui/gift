@@ -71,7 +71,7 @@ export default function NewGiftPage() {
               type="number"
               inputMode="numeric"
               min="0"
-              step="1"
+              step="10000"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder="예: 100000"
