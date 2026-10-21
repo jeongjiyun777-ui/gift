@@ -9,6 +9,11 @@ type Gift = {
   amount: number;
 };
 
+type GiftTotal = {
+  count: number;
+  total_amount: number;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 
@@ -16,6 +21,7 @@ export default function Home() {
   const [searchName, setSearchName] = useState<string>("");
   const [appliedName, setAppliedName] = useState<string>("");
   const [gifts, setGifts] = useState<Gift[]>([]);
+  const [totalAmount, setTotalAmount] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
@@ -29,19 +35,23 @@ export default function Home() {
       const query = name.trim()
         ? `?name=${encodeURIComponent(name.trim())}`
         : "";
-      const response = await fetch(`${API_URL}/gifts${query}`, {
-        cache: "no-store",
-      });
+      const [response, totalResponse] = await Promise.all([
+        fetch(`${API_URL}/gifts${query}`, { cache: "no-store" }),
+        fetch(`${API_URL}/gifts/total${query}`, { cache: "no-store" }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(`조회 요청에 실패했습니다. (${response.status})`);
+      if (!response.ok || !totalResponse.ok) {
+        throw new Error("조회 요청에 실패했습니다.");
       }
 
       const data: Gift[] = await response.json();
+      const total: GiftTotal = await totalResponse.json();
       setGifts(data);
+      setTotalAmount(total.total_amount);
       setAppliedName(name.trim());
     } catch {
       setGifts([]);
+      setTotalAmount(null);
       setError("서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인해 주세요.");
     } finally {
       setLoading(false);
@@ -176,6 +186,17 @@ export default function Home() {
               </button>
             </nav>
           </>
+        )}
+        {!loading && !error && totalAmount !== null && (
+          <p
+            aria-live="polite"
+            className="mt-6 text-right text-xl font-bold tracking-tight text-slate-900 sm:text-2xl"
+          >
+            총합계{" "}
+            <span className="tabular-nums text-blue-600">
+              {totalAmount.toLocaleString("ko-KR")}원
+            </span>
+          </p>
         )}
       </section>
     </main>

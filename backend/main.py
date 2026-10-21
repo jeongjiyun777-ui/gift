@@ -50,3 +50,23 @@ def get_gifts(name: str | None = Query(default=None, description="이름 일부 
         rows = conn.execute(query, params).mappings().all()
 
     return [dict(row) for row in rows]
+
+
+@app.get("/gifts/total", summary="축의금 총액 조회")
+def get_gifts_total(
+    name: str | None = Query(default=None, description="이름 일부 검색. 비워두면 전체 총액")
+) -> dict[str, int]:
+    search_name = name.strip() if name and name.strip() else None
+    query = text("""
+        SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount
+        FROM public.gifts
+        WHERE (:search_name IS NULL OR name ILIKE :name_pattern)
+    """)
+    params = {
+        "search_name": search_name,
+        "name_pattern": f"%{search_name}%" if search_name else None,
+    }
+    with engine.connect() as conn:
+        result = conn.execute(query, params).mappings().one()
+
+    return {"count": int(result["count"]), "total_amount": int(result["total_amount"])}
