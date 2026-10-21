@@ -71,7 +71,7 @@ export default function Home() {
           이름을 검색하면 해당하는 기록을 모두 보여줍니다.
         </p>
 
-        <form onSubmit={handleSearch} className="mt-7 flex gap-2">
+        <form onSubmit={handleSearch} className="mt-7 flex flex-wrap gap-2">
           <label htmlFor="gift-name" className="sr-only">
             이름 검색
           </label>
@@ -81,7 +81,7 @@ export default function Home() {
             value={searchName}
             onChange={(event) => setSearchName(event.target.value)}
             placeholder="이름 입력"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="min-w-0 basis-full flex-1 rounded-lg sm:basis-0 border border-slate-300 px-4 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
           <button
             type="submit"
@@ -100,6 +100,17 @@ export default function Home() {
               <path d="m16 16 4 4" strokeLinecap="round" strokeWidth="2" />
             </svg>
             <span>검색</span>
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setSearchName("");
+              void loadGifts("");
+            }}
+            className="shrink-0 rounded-lg border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
+          >
+            전체 보기
           </button>
         </form>
 
