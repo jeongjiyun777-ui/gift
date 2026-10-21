@@ -25,11 +25,18 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string>("");
+  const [deleteMessage, setDeleteMessage] = useState<string>("");
 
   const loadGifts = useCallback(async (name: string) => {
     setLoading(true);
     setError("");
     setCurrentPage(1);
+    setSelectedIds([]);
+    setDeleteError("");
+    setDeleteMessage("");
 
     try {
       const query = name.trim()
@@ -67,6 +74,38 @@ export default function Home() {
     void loadGifts(searchName);
   }
 
+  async function handleDelete() {
+    if (loading || deleting || selectedIds.length === 0) return;
+    const selectedGifts = gifts.filter((gift) => selectedIds.includes(gift.id));
+    const details = selectedGifts
+      .map((gift) => `${gift.id}번 ${gift.name} · ${gift.amount.toLocaleString("ko-KR")}원`)
+      .join("\n");
+    if (!window.confirm(`선택한 ${selectedGifts.length}건을 정말 삭제하시겠습니까?\n\n${details}\n\n삭제한 기록은 되돌릴 수 없습니다.`)) return;
+
+    setDeleting(true);
+    setDeleteError("");
+    setDeleteMessage("");
+    try {
+      const response = await fetch(`${API_URL}/gifts`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedGifts.map((gift) => gift.id) }),
+      });
+      if (response.status === 409) {
+        setDeleteError("선택한 기록이 변경됐습니다. 새로 조회한 뒤 다시 선택해 주세요.");
+        return;
+      }
+      if (!response.ok) throw new Error("삭제 실패");
+      const result: { deleted_count: number } = await response.json();
+      await loadGifts(appliedName);
+      setDeleteMessage(`${result.deleted_count}건을 삭제했습니다.`);
+    } catch {
+      setDeleteError("삭제 결과를 확인하지 못했습니다. 새로 조회해 기록을 확인해 주세요.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(gifts.length / PAGE_SIZE));
   const visibleGifts = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -74,7 +113,7 @@ export default function Home() {
   }, [gifts, currentPage]);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
+    <main className="flex-1 bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">축의금 조회</h1>
         <p className="mt-2 text-sm text-slate-500">
@@ -88,6 +127,7 @@ export default function Home() {
           <input
             id="gift-name"
             type="text"
+            disabled={deleting}
             value={searchName}
             onChange={(event) => setSearchName(event.target.value)}
             placeholder="이름 입력"
@@ -95,7 +135,7 @@ export default function Home() {
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || deleting}
             aria-label="이름 검색"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
           >
@@ -113,7 +153,7 @@ export default function Home() {
           </button>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || deleting}
             onClick={() => {
               setSearchName("");
               void loadGifts("");
@@ -131,6 +171,22 @@ export default function Home() {
           {!loading && !error && <p>총 {gifts.length}건</p>}
         </div>
 
+        {!loading && !error && gifts.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+            <span className="text-sm text-slate-500" aria-live="polite">{selectedIds.length}건 선택</span>
+            <button
+              type="button"
+              disabled={deleting || selectedIds.length === 0}
+              onClick={() => void handleDelete()}
+              className="rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {deleting ? "삭제 중..." : "선택 삭제"}
+            </button>
+          </div>
+        )}
+        {deleteError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-4 text-sm text-red-700">{deleteError}</p>}
+        {deleteMessage && <p role="status" className="mt-3 rounded-lg bg-green-50 p-4 text-sm text-green-800">{deleteMessage}</p>}
+
         {error ? (
           <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-700">
             {error}
@@ -141,10 +197,20 @@ export default function Home() {
           <p className="py-14 text-center text-slate-500">검색 결과가 없습니다.</p>
         ) : (
           <>
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-sm sm:text-base">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
+                    <th scope="col" className="w-12 px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label="현재 페이지 전체 선택"
+                        disabled={deleting}
+                        checked={visibleGifts.length > 0 && visibleGifts.every((gift) => selectedIds.includes(gift.id))}
+                        onChange={(event) => setSelectedIds(event.target.checked ? visibleGifts.map((gift) => gift.id) : [])}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                    </th>
                     <th scope="col" className="w-20 px-4 py-3 text-center font-medium">번호</th>
                     <th scope="col" className="px-4 py-3 font-medium">이름</th>
                     <th scope="col" className="px-4 py-3 text-right font-medium">금액</th>
@@ -153,6 +219,18 @@ export default function Home() {
                 <tbody className="divide-y divide-slate-100">
                   {visibleGifts.map((gift) => (
                     <tr key={gift.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`${gift.id}번 ${gift.name} 선택`}
+                          disabled={deleting}
+                          checked={selectedIds.includes(gift.id)}
+                          onChange={(event) => {
+                            setSelectedIds((ids) => event.target.checked ? [...ids, gift.id] : ids.filter((id) => id !== gift.id));
+                          }}
+                          className="h-4 w-4 accent-blue-600"
+                        />
+                      </td>
                       <td className="px-4 py-3 text-center text-slate-500">{gift.id}</td>
                       <td className="px-4 py-3 font-medium">{gift.name}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
@@ -167,8 +245,8 @@ export default function Home() {
             <nav aria-label="결과 페이지" className="mt-5 flex items-center justify-center gap-4">
               <button
                 type="button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={currentPage === 1}
+                onClick={() => { setSelectedIds([]); setCurrentPage((page) => Math.max(1, page - 1)); }}
+                disabled={deleting || currentPage === 1}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 이전
@@ -178,8 +256,8 @@ export default function Home() {
               </span>
               <button
                 type="button"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={currentPage === totalPages}
+                onClick={() => { setSelectedIds([]); setCurrentPage((page) => Math.min(totalPages, page + 1)); }}
+                disabled={deleting || currentPage === totalPages}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 다음
