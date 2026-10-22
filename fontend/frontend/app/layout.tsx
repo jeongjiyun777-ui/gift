@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "정정식 축의금 조회",
-  description: "정정식 축의금 조회 서비스",
+  title: "정정식 업무목록",
+  description: "축의금과 운행기록을 관리하는 정정식 업무목록",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
