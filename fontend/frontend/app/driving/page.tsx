@@ -39,6 +39,8 @@ export default function DrivingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   const loadDrivingRecords = useCallback(async () => {
     setLoading(true);
@@ -68,30 +70,63 @@ export default function DrivingPage() {
     return records.slice(start, start + PAGE_SIZE);
   }, [records, currentPage]);
 
+  async function handleExcelDownload() {
+    if (loading || downloading || records.length === 0) return;
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const { createDrivingWorkbook } = await import("../../lib/drivingExcel");
+      const buffer = await createDrivingWorkbook(records);
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      link.href = url;
+      link.download = `운행기록_${today}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setDownloadError("엑셀 파일을 만들지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <main className="flex-1 bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
       <section className="mx-auto w-full max-w-7xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록</h1>
-            <p className="mt-2 text-sm text-slate-500">거래명세서 순서에 맞춰 운행 내역을 확인해 보세요.</p>
+            <p className="mt-2 text-sm text-slate-500">운행 내역을 확인해 보세요.</p>
           </div>
-          <button type="button" disabled={loading} onClick={() => void loadDrivingRecords()} className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-60">
-            {loading ? "조회 중..." : "새로고침"}
+          <button type="button" disabled={loading || downloading || records.length === 0 || Boolean(error)} onClick={() => void handleExcelDownload()} className="inline-flex items-center gap-2 rounded-lg bg-[#107C41] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0B5C30] disabled:cursor-not-allowed disabled:opacity-50">
+            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 3h6v18h-6M14 7h6M14 12h6M14 17h6M17 3v18" />
+              <path d="m3 5 11-2v18L3 19V5ZM6 9l5 6M11 9l-5 6" />
+            </svg>
+            {downloading ? "파일 만드는 중..." : "엑셀로 다운로드"}
           </button>
         </div>
         <div className="mt-7 flex items-center justify-between gap-3 text-sm text-slate-500">
-          <h2 className="font-semibold text-slate-700">거래명세서</h2>
+          <h2 className="font-semibold text-slate-700">운행기록</h2>
           {!loading && !error && <p>총 {records.length}건</p>}
         </div>
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {downloadError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>}
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button type="button" disabled title="수정 기능 준비 중" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">수정하기</button>
+          <button type="button" disabled title="삭제 기능 준비 중" className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40">삭제하기</button>
+        </div>
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[1240px] border-collapse text-sm">
             <caption className="sr-only">운행기록 거래명세서. 금액 단위는 원입니다.</caption>
             <thead className="bg-slate-100 text-slate-700">
               <tr>
                 {columns.map((label, index) => (
-                  <th key={`${label}-${index}`} scope="col" aria-label={index === 4 ? "첫 번째 지역" : index === 5 ? "두 번째 지역" : label} className={`whitespace-nowrap border-b border-r border-slate-200 px-4 py-3 font-semibold last:border-r-0 ${index === 9 || index === 10 ? "text-right" : "text-center"}`}>
+                  <th key={`${label}-${index}`} scope="col" aria-label={index === 4 ? "첫 번째 지역" : index === 5 ? "두 번째 지역" : label} className="whitespace-nowrap border-b border-r border-slate-200 px-4 py-3 text-center font-semibold last:border-r-0">
                     {label}
                   </th>
                 ))}
