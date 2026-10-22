@@ -39,6 +39,7 @@ const routeOptions: DrivingRoute[] = [
 ];
 
 const shippers = [...new Set(routeOptions.map((route) => route.shipper))];
+const CONTAINER_SPEC = "40";
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
 
 export default function NewDrivingPage() {
@@ -46,6 +47,7 @@ export default function NewDrivingPage() {
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
+  const [chargeAmount, setChargeAmount] = useState<string>("");
 
   const origins = [...new Set(routeOptions.filter((route) => route.shipper === shipper).map((route) => route.origin))];
   const destinations = [...new Set(routeOptions.filter((route) => route.shipper === shipper && route.origin === origin).map((route) => route.destination))];
@@ -116,6 +118,26 @@ export default function NewDrivingPage() {
             <p id="driving-container-hint" className={`mt-2 text-sm ${containerHasError ? "text-red-600" : "text-slate-500"}`}>
               영문 4자리와 숫자 7자리로 입력해 주세요. 컨테이너 번호는 직접 확인해 입력합니다.
             </p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="driving-spec" className="mb-2 block font-semibold">규격</label>
+              <input id="driving-spec" type="text" value={CONTAINER_SPEC} readOnly className={`${fieldClass} bg-slate-100 text-slate-500`} />
+            </div>
+            <div>
+              <label htmlFor="driving-charge" className="mb-2 block font-semibold">청구가액 (원)</label>
+              <input
+                id="driving-charge"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={chargeAmount}
+                onChange={(event) => setChargeAmount(event.target.value)}
+                placeholder="예: 357300"
+                className={fieldClass}
+              />
+            </div>
           </div>
           <div className="flex justify-end pt-2">
             <Link href="/driving" className="rounded-lg border border-slate-300 px-5 py-3 font-semibold hover:bg-slate-50">조회로 돌아가기</Link>
