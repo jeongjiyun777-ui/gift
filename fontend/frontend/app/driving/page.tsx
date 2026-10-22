@@ -45,8 +45,7 @@ export default function DrivingPage() {
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [appliedPeriod, setAppliedPeriod] = useState("전체 기간");
-  const currentYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date()));
-  const years = Array.from({ length: Math.max(2028, currentYear + 2) - 2026 + 1 }, (_, index) => String(2026 + index));
+  const [years, setYears] = useState(["2026", "2027", "2028"]);
 
   const loadDrivingRecords = useCallback(async (selectedYear = "", selectedMonth = "", signal?: AbortSignal) => {
     setLoading(true);
@@ -81,7 +80,10 @@ export default function DrivingPage() {
   useEffect(() => {
     const controller = new AbortController();
     void Promise.resolve().then(() => {
-      if (!controller.signal.aborted) void loadDrivingRecords("", "", controller.signal);
+      if (controller.signal.aborted) return;
+      const currentYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date()));
+      setYears(Array.from({ length: Math.max(2028, currentYear + 2) - 2026 + 1 }, (_, index) => String(2026 + index)));
+      void loadDrivingRecords("", "", controller.signal);
     });
     return () => controller.abort();
   }, [loadDrivingRecords]);
