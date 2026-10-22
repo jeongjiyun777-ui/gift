@@ -9,6 +9,11 @@ const giftLinks = [
   { href: "/gifts/new", label: "입력", icon: "add" },
 ] as const;
 
+const drivingLinks = [
+  { href: "/driving", label: "조회", icon: "car" },
+  { href: "/driving/new", label: "입력", icon: "car" },
+] as const;
+
 function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" }) {
   return (
     <svg
@@ -41,6 +46,8 @@ function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" }) {
 export default function Header() {
   const pathname = usePathname();
   const [giftMenuOpen, setGiftMenuOpen] = useState(false);
+  const [drivingMenuOpen, setDrivingMenuOpen] = useState(false);
+  const isDrivingPage = pathname === "/driving" || pathname.startsWith("/driving/");
   const isGiftPage = pathname === "/" || pathname.startsWith("/gifts/");
 
   return (
@@ -108,16 +115,64 @@ export default function Header() {
               </div>
             )}
           </div>
-          <Link
-            href="/driving"
-            aria-current={pathname === "/driving" ? "page" : undefined}
-            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-              pathname === "/driving" ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
-            }`}
+          <div
+            className="relative"
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setDrivingMenuOpen(true);
+            }}
+            onPointerLeave={(event) => {
+              if (event.pointerType === "mouse") setDrivingMenuOpen(false);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setDrivingMenuOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setDrivingMenuOpen(false);
+            }}
           >
-            <HeaderIcon icon="car" />
-            운행기록
-          </Link>
+            <button
+              type="button"
+              aria-expanded={drivingMenuOpen}
+              aria-controls="driving-navigation"
+              onClick={() => setDrivingMenuOpen((open) => !open)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setDrivingMenuOpen(true);
+                }
+              }}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                isDrivingPage ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
+              }`}
+            >
+              <HeaderIcon icon="car" />
+              운행기록
+              <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {drivingMenuOpen && (
+              <div id="driving-navigation" className="absolute right-0 top-full w-40 pt-2">
+                <div className="rounded-xl bg-white p-2 text-slate-900 shadow-lg ring-1 ring-slate-200">
+                  {drivingLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-label={`운행기록 ${link.label}`}
+                      aria-current={pathname === link.href ? "page" : undefined}
+                      onClick={() => setDrivingMenuOpen(false)}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        pathname === link.href ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <HeaderIcon icon={link.icon} />
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </nav>
       </div>
     </header>
