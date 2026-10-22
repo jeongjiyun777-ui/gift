@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
-const links = [
-  { href: "/", label: "축의금 조회", icon: "gift" },
-  { href: "/gifts/new", label: "축의금 입력", icon: "add" },
-  { href: "/driving", label: "운행기록", icon: "car" },
+const giftLinks = [
+  { href: "/", label: "조회", icon: "gift" },
+  { href: "/gifts/new", label: "입력", icon: "add" },
 ] as const;
 
-function HeaderIcon({ icon }: { icon: (typeof links)[number]["icon"] }) {
+function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" }) {
   return (
     <svg
       aria-hidden="true"
@@ -40,29 +40,84 @@ function HeaderIcon({ icon }: { icon: (typeof links)[number]["icon"] }) {
 
 export default function Header() {
   const pathname = usePathname();
+  const [giftMenuOpen, setGiftMenuOpen] = useState(false);
+  const isGiftPage = pathname === "/" || pathname.startsWith("/gifts/");
 
   return (
-    <header className="border-b border-slate-700 bg-slate-800 text-white">
+    <header className="relative z-20 border-b border-slate-700 bg-slate-800 text-white">
       <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-5">
         <Link href="/" className="text-xl font-bold tracking-tight">
           정정식 업무목록
         </Link>
         <nav aria-label="주 메뉴" className="flex flex-wrap gap-2">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              aria-current={pathname === link.href ? "page" : undefined}
+          <div
+            className="relative"
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setGiftMenuOpen(true);
+            }}
+            onPointerLeave={(event) => {
+              if (event.pointerType === "mouse") setGiftMenuOpen(false);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setGiftMenuOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setGiftMenuOpen(false);
+            }}
+          >
+            <button
+              type="button"
+              aria-expanded={giftMenuOpen}
+              aria-controls="gift-navigation"
+              onClick={() => setGiftMenuOpen((open) => !open)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setGiftMenuOpen(true);
+                }
+              }}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                pathname === link.href
-                  ? "bg-white text-slate-900"
-                  : "text-slate-200 hover:bg-slate-700 hover:text-white"
+                isGiftPage ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
               }`}
             >
-              <HeaderIcon icon={link.icon} />
-              {link.label}
-            </Link>
-          ))}
+              <HeaderIcon icon="gift" />
+              축의금
+              <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {giftMenuOpen && (
+              <div id="gift-navigation" className="absolute right-0 top-full w-40 pt-2">
+                <div className="rounded-xl bg-white p-2 text-slate-900 shadow-lg ring-1 ring-slate-200">
+                  {giftLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-label={`축의금 ${link.label}`}
+                      aria-current={pathname === link.href ? "page" : undefined}
+                      onClick={() => setGiftMenuOpen(false)}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        pathname === link.href ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <HeaderIcon icon={link.icon} />
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <Link
+            href="/driving"
+            aria-current={pathname === "/driving" ? "page" : undefined}
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              pathname === "/driving" ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
+            }`}
+          >
+            <HeaderIcon icon="car" />
+            운행기록
+          </Link>
         </nav>
       </div>
     </header>
