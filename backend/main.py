@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from typing import Annotated
 
 from dotenv import load_dotenv
@@ -117,3 +118,60 @@ def delete_gifts(selection: GiftDelete) -> dict[str, int]:
                 detail="선택한 기록 중 이미 삭제된 기록이 있습니다. 새로 조회한 뒤 다시 선택하세요.",
             )
     return {"deleted_count": len(deleted)}
+
+
+class DrivingRecordCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    operated_on: date | None = None
+    shipper_name: str = Field(min_length=1)
+    region_1: str | None = None
+    region_2: str | None = None
+    category: str | None = None
+    shipping_line: str | None = None
+    container_spec: str = Field(default="40", pattern=r"^40$")
+    container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
+    charge_amount: int = Field(strict=True, ge=0, le=9007199254740991)
+    tax_amount: int | None = Field(default=None, strict=True, ge=0, le=9007199254740991)
+    memo: str | None = None
+    vehicle_number: str | None = None
+    recipient_name: str | None = None
+
+
+@app.post("/driving-records", status_code=201, summary="운행기록 저장")
+def create_driving_record(record: DrivingRecordCreate):
+    query = text("""
+        INSERT INTO public.driving_records (
+            operated_on, shipper_name, region_1, region_2, category,
+            shipping_line, container_spec, container_no, charge_amount,
+            tax_amount, memo, vehicle_number, recipient_name
+        ) VALUES (
+            COALESCE(:operated_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
+            :shipper_name, :region_1, :region_2, :category,
+            :shipping_line, :container_spec, :container_no, :charge_amount,
+            :tax_amount, :memo, :vehicle_number, :recipient_name
+        )
+        RETURNING id, operated_on, category, shipper_name,
+                  region_1, region_2, shipping_line, container_spec,
+                  container_no, charge_amount, tax_amount, memo,
+                  vehicle_number, recipient_name, created_at
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(query, record.model_dump()).mappings().one()
+    return dict(row)
+
+
+@app.get("/driving-records", summary="운행기록 조회")
+def get_driving_records():
+    query = text("""
+        SELECT id, operated_on, category, shipper_name,
+               region_1, region_2, shipping_line, container_spec,
+               container_no, charge_amount, tax_amount, memo,
+               vehicle_number, recipient_name, created_at
+        FROM public.driving_records
+        ORDER BY id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    return [dict(row) for row in rows]

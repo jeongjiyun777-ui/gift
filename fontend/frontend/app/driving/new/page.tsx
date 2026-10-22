@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 interface DrivingRoute {
   shipper: string;
@@ -43,6 +47,9 @@ const CONTAINER_SPEC = "40";
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
 
 export default function NewDrivingPage() {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [shipper, setShipper] = useState<string>("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
@@ -64,12 +71,45 @@ export default function NewDrivingPage() {
     setDestination("");
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+    setError("");
+    const amount = Number(chargeAmount);
+    if (!shipper || !origin || !destination || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
+      setError("화주와 구간을 선택하고, 컨테이너 번호와 청구가액을 확인해 주세요.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/driving-records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shipper_name: shipper,
+          region_1: origin,
+          region_2: destination,
+          container_spec: CONTAINER_SPEC,
+          container_no: containerNo || null,
+          charge_amount: amount,
+        }),
+      });
+      if (!response.ok) throw new Error("운행기록 저장 실패");
+      await response.json();
+      router.push("/driving");
+    } catch {
+      setError("저장을 확인하지 못했습니다. 조회 화면에서 내역을 확인한 뒤 다시 시도해 주세요.");
+      setSaving(false);
+    }
+  }
+
   return (
     <main className="flex-1 bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록 입력</h1>
         <p className="mt-2 text-sm text-slate-500">화주를 선택한 뒤 출발지와 도착지를 차례로 선택해 주세요.</p>
-        <div className="mt-7 space-y-5">
+        <form onSubmit={handleSubmit} className="mt-7">
+        <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
             <select id="driving-shipper" value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
@@ -139,10 +179,13 @@ export default function NewDrivingPage() {
               />
             </div>
           </div>
-          <div className="flex justify-end pt-2">
+          {error && <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          <div className="flex flex-wrap justify-end gap-3 pt-2">
             <Link href="/driving" className="rounded-lg border border-slate-300 px-5 py-3 font-semibold hover:bg-slate-50">조회로 돌아가기</Link>
+            <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">{saving ? "저장 중..." : "저장하기"}</button>
           </div>
-        </div>
+        </fieldset>
+        </form>
       </section>
     </main>
   );
