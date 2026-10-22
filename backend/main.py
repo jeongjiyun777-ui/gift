@@ -162,16 +162,32 @@ def create_driving_record(record: DrivingRecordCreate):
 
 
 @app.get("/driving-records", summary="운행기록 조회")
-def get_driving_records():
-    query = text("""
+def get_driving_records(
+    year: int | None = Query(default=None, ge=1, le=9998),
+    month: int | None = Query(default=None, ge=1, le=12),
+):
+    if month is not None and year is None:
+        raise HTTPException(status_code=422, detail="월을 조회하려면 연도도 선택하세요.")
+    params = {}
+    period_filter = ""
+    if year is not None:
+        start_month = month or 1
+        params["start_date"] = date(year, start_month, 1)
+        params["end_date"] = (
+            date(year + 1, 1, 1) if month is None or month == 12
+            else date(year, month + 1, 1)
+        )
+        period_filter = "WHERE operated_on >= :start_date AND operated_on < :end_date"
+    query = text(f"""
         SELECT id, operated_on, category, shipper_name,
                region_1, region_2, shipping_line, container_spec,
                container_no, charge_amount, tax_amount, memo,
                vehicle_number, recipient_name, created_at
         FROM public.driving_records
+        {period_filter}
         ORDER BY id
     """)
     with engine.connect() as conn:
-        rows = conn.execute(query).mappings().all()
+        rows = conn.execute(query, params).mappings().all()
 
     return [dict(row) for row in rows]
