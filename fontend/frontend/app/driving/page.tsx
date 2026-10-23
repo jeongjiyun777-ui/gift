@@ -2,26 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-
-interface DrivingRecord {
-  id: number | string;
-  operated_on: string;
-  category: string | null;
-  shipper_name: string;
-  region_1: string | null;
-  region_2: string | null;
-  shipping_line: string | null;
-  container_spec: string | null;
-  container_no: string | null;
-  charge_amount: number | string;
-  tax_amount: number | string | null;
-  memo: string | null;
-  vehicle_number: string | null;
-  recipient_name: string | null;
-  created_at: string;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+import DrivingRecordEditor from "../../components/DrivingRecordEditor";
+import { DRIVING_API_URL as API_URL, type DrivingRecord } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
 const columns = ["번호", "일자", "구분", "화주", "지역", "지역", "라인", "규격", "CNTR", "청구가액", "세액", "비고"];
 
@@ -46,6 +28,13 @@ export default function DrivingPage() {
   const [period, setPeriod] = useState("");
   const [appliedPeriod, setAppliedPeriod] = useState("전체 기간");
   const activeRequest = useRef<AbortController | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editing, setEditing] = useState<DrivingRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [notice, setNotice] = useState("");
+  const appliedQuery = useRef({ year: "", month: "" });
+  const busy = loading || deleting || Boolean(editing);
 
   const loadDrivingRecords = useCallback(async (selectedYear = "", selectedMonth = "") => {
     activeRequest.current?.abort();
@@ -57,6 +46,8 @@ export default function DrivingPage() {
     setError("");
     setCurrentPage(1);
     setDownloadError("");
+    setSelectedIds([]);
+    setEditing(null);
     try {
       const params = new URLSearchParams();
       if (selectedYear) params.set("year", selectedYear);
@@ -67,6 +58,7 @@ export default function DrivingPage() {
       if (!Array.isArray(data)) throw new Error("운행기록 응답 형식 오류");
       if (signal?.aborted) return;
       setRecords(data);
+      appliedQuery.current = { year: selectedYear, month: selectedMonth };
       setAppliedPeriod(selectedYear ? `${selectedYear}년 ${selectedMonth ? `${selectedMonth}월` : "전체 월"}` : "전체 기간");
     } catch {
       if (signal?.aborted) return;
@@ -90,6 +82,57 @@ export default function DrivingPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     return records.slice(start, start + PAGE_SIZE);
   }, [records, currentPage]);
+
+  function toggleSelection(id: string) {
+    setEditing(null);
+    setSelectedIds((previous) => previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id]);
+  }
+
+  async function reloadAppliedPeriod() {
+    await loadDrivingRecords(appliedQuery.current.year, appliedQuery.current.month);
+  }
+
+  const handleEdit = () => {
+    if (busy || selectedIds.length !== 1) return;
+    const record = records.find((item) => String(item.id) === selectedIds[0]);
+    if (!record) {
+      setActionError("선택한 기록을 찾을 수 없습니다. 다시 조회해 주세요.");
+      return;
+    }
+    setActionError("");
+    setNotice("");
+    setEditing(record);
+  };
+
+  const handleEditClose = () => setEditing(null);
+
+  const handleEditSaved = async () => {
+    setNotice("수정했습니다.");
+    await reloadAppliedPeriod();
+  };
+
+  const handleDelete = async () => {
+    if (busy || !selectedIds.length) return;
+    if (!window.confirm(`선택한 운행기록 ${selectedIds.length}건을 정말 삭제하시겠습니까?`)) return;
+    const ids = selectedIds.map(Number);
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      setActionError("기록 번호를 확인할 수 없습니다. 다시 조회해 주세요.");
+      return;
+    }
+    setDeleting(true);
+    setActionError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${API_URL}/driving-records/delete`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }),
+      });
+      if (!response.ok) throw new Error("삭제 실패");
+      setNotice(`${ids.length}건을 삭제했습니다.`);
+      await reloadAppliedPeriod();
+    } catch {
+      setActionError("삭제를 확인하지 못했습니다. 다시 조회한 뒤 내역을 확인해 주세요.");
+    } finally { setDeleting(false); }
+  };
 
   async function handleExcelDownload() {
     if (loading || downloading || records.length === 0) return;
@@ -122,7 +165,7 @@ export default function DrivingPage() {
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록</h1>
             <p className="mt-2 text-sm text-slate-500">운행 내역을 확인해 보세요.</p>
           </div>
-          <button type="button" disabled={loading || downloading || records.length === 0 || Boolean(error)} onClick={() => void handleExcelDownload()} className="inline-flex items-center gap-2 rounded-lg bg-[#107C41] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0B5C30] disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={busy || downloading || records.length === 0 || Boolean(error)} onClick={() => void handleExcelDownload()} className="inline-flex items-center gap-2 rounded-lg bg-[#107C41] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0B5C30] disabled:cursor-not-allowed disabled:opacity-50">
             <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 3h6v18h-6M14 7h6M14 12h6M14 17h6M17 3v18" />
               <path d="m3 5 11-2v18L3 19V5ZM6 9l5 6M11 9l-5 6" />
@@ -136,15 +179,22 @@ export default function DrivingPage() {
         </div>
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         {downloadError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>}
+        {actionError && <p role="alert" className="mt-3 text-sm text-red-700">{actionError}</p>}
+        {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
         <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button type="button" disabled title="수정 기능 준비 중" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">수정하기</button>
-          <button type="button" disabled title="삭제 기능 준비 중" className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40">삭제하기</button>
+          <span className="self-center text-sm text-slate-500">{selectedIds.length}건 선택 · 전체 선택은 조회 기간 전체, 수정은 1건씩 가능합니다.</span>
+          <button type="button" disabled={busy || selectedIds.length !== 1} onClick={handleEdit} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">수정하기</button>
+          <button type="button" disabled={loading || deleting || !selectedIds.length || Boolean(editing)} onClick={handleDelete} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40">{deleting ? "삭제 중..." : "삭제하기"}</button>
         </div>
+        {editing && <DrivingRecordEditor key={String(editing.id)} record={editing} onClose={handleEditClose} onSaved={handleEditSaved} />}
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[1240px] border-collapse text-sm">
             <caption className="sr-only">운행기록 거래명세서. 금액 단위는 원입니다.</caption>
             <thead className="bg-slate-100 text-slate-700">
               <tr>
+                <th scope="col" className="border-b border-r border-slate-200 px-4 py-3 text-center">
+                  <input type="checkbox" aria-label="조회 결과 전체 선택" disabled={loading || deleting || Boolean(editing) || !records.length} checked={records.length > 0 && selectedIds.length === records.length} onChange={(event) => setSelectedIds(event.target.checked ? records.map((record) => String(record.id)) : [])} />
+                </th>
                 {columns.map((label, index) => (
                   <th key={`${label}-${index}`} scope="col" aria-label={index === 4 ? "첫 번째 지역" : index === 5 ? "두 번째 지역" : label} className="whitespace-nowrap border-b border-r border-slate-200 px-4 py-3 text-center font-semibold last:border-r-0">
                     {label}
@@ -155,12 +205,13 @@ export default function DrivingPage() {
             <tbody className="divide-y divide-slate-200 [&_td]:border-r [&_td]:border-slate-200 [&_td]:px-4 [&_td]:py-3 [&_td:last-child]:border-r-0">
               {loading || error || records.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="h-40 text-center text-slate-500" aria-live="polite">
+                  <td colSpan={columns.length + 1} className="h-40 text-center text-slate-500" aria-live="polite">
                     {loading ? "운행기록을 불러오는 중입니다..." : error ? "기간을 선택하고 다시 조회해 주세요." : !hasSearched ? "아래에서 조회 월을 선택하고 조회하기를 눌러 주세요." : "조회한 기간에 등록된 운행기록이 없습니다."}
                   </td>
                 </tr>
               ) : visibleRecords.map((record) => (
                 <tr key={record.id} className="hover:bg-slate-50">
+                  <td className="text-center"><input type="checkbox" aria-label={`${record.id}번 운행기록 선택`} disabled={loading || deleting || Boolean(editing)} checked={selectedIds.includes(String(record.id))} onChange={() => toggleSelection(String(record.id))} /></td>
                   <td className="text-center tabular-nums text-slate-500">{record.id}</td>
                   <td className="whitespace-nowrap text-center">{record.operated_on}</td>
                   <td className="text-center">{displayText(record.category)}</td>
@@ -182,17 +233,17 @@ export default function DrivingPage() {
         <form onSubmit={handlePeriodSearch} className="mt-6 flex flex-wrap items-end justify-center gap-3 rounded-xl bg-slate-50 px-4 py-5">
           <div>
             <label htmlFor="driving-period" className="mb-2 block text-sm font-semibold text-slate-700">조회 월</label>
-            <input id="driving-period" type="month" min="0001-01" max="9998-12" value={period} disabled={loading} onChange={(event) => setPeriod(event.target.value)} aria-describedby="driving-period-hint" className="min-w-48 rounded-lg border border-slate-300 bg-white px-4 py-3 disabled:opacity-50" />
+            <input id="driving-period" type="month" min="0001-01" max="9998-12" value={period} disabled={busy} onChange={(event) => setPeriod(event.target.value)} aria-describedby="driving-period-hint" className="min-w-48 rounded-lg border border-slate-300 bg-white px-4 py-3 disabled:opacity-50" />
           </div>
-          <button type="submit" disabled={loading} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50">{loading ? "조회 중..." : "조회하기"}</button>
-          <button type="button" disabled={loading} onClick={() => { setPeriod(""); void loadDrivingRecords(); }} className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold hover:bg-slate-100 disabled:opacity-50">전체보기</button>
+          <button type="submit" disabled={busy} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50">{loading ? "조회 중..." : "조회하기"}</button>
+          <button type="button" disabled={busy} onClick={() => { setPeriod(""); void loadDrivingRecords(); }} className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold hover:bg-slate-100 disabled:opacity-50">전체보기</button>
           <p id="driving-period-hint" className="w-full text-center text-sm text-slate-500">월을 선택한 뒤 조회하세요. 비워두면 전체 기간을 조회합니다.</p>
         </form>
         {!loading && !error && records.length > 0 && (
           <nav aria-label="운행기록 페이지" className="mt-5 flex items-center justify-center gap-4">
-            <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">이전</button>
+            <button type="button" disabled={busy || currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">이전</button>
             <span aria-live="polite" className="text-sm text-slate-600">{currentPage} / {totalPages}</span>
-            <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">다음</button>
+            <button type="button" disabled={busy || currentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">다음</button>
           </nav>
         )}
       </section>
