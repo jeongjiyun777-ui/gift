@@ -7,77 +7,7 @@ import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
-interface DrivingRoute {
-  shipper: string;
-  origin: string;
-  destination: string;
-}
-
-// 7월·9월 명세서에서 확인한 주요 구간. DB 운행기록과는 별도의 화면 선택지입니다.
-const routeOptions: DrivingRoute[] = [
-  { shipper: "삼성로지텍", origin: "한진신항", destination: "화성A" },
-  { shipper: "삼성로지텍", origin: "한진신항", destination: "화성B" },
-  { shipper: "삼성로지텍", origin: "선광신항", destination: "화성A" },
-  { shipper: "삼성로지텍", origin: "평택항", destination: "화성A" },
-  { shipper: "삼성로지텍", origin: "평택항", destination: "화성B" },
-  { shipper: "윤하운송", origin: "만도", destination: "평택포승" },
-  { shipper: "윤하운송", origin: "케이랜드", destination: "안성미양" },
-  { shipper: "윤하운송", origin: "글로비스", destination: "아산인주" },
-  { shipper: "윤하운송", origin: "원방디아이", destination: "파주교하" },
-  { shipper: "윤하운송", origin: "인천반납", destination: "인천반납" },
-  { shipper: "윤하운송", origin: "대웅산업", destination: "시흥거북섬" },
-  { shipper: "윤하운송", origin: "대웅산업", destination: "시흥정왕2" },
-  { shipper: "윤하운송", origin: "대영포장", destination: "화성장안" },
-  { shipper: "윤하운송", origin: "에코텍알엠", destination: "화성장안" },
-  { shipper: "윤하운송", origin: "코다코", destination: "안성미양" },
-  { shipper: "윤하운송", origin: "세방유통", destination: "용인모현" },
-  { shipper: "윤하운송", origin: "신일화학", destination: "안산초지" },
-  { shipper: "윤하운송", origin: "대진", destination: "안산초지" },
-  { shipper: "윤하운송", origin: "로레알", destination: "안성일죽" },
-  { shipper: "윤하운송", origin: "케이티비전", destination: "파주파주" },
-  { shipper: "윤하운송", origin: "세원상사", destination: "철원김화" },
-  { shipper: "윤하운송", origin: "다코넷", destination: "평택포승" },
-  { shipper: "윤하운송", origin: "메인로드", destination: "인천오류왕" },
-  { shipper: "윤하운송", origin: "탑코리아", destination: "인천연안" },
-  { shipper: "윤하운송", origin: "포지션", destination: "포지션" },
-  { shipper: "윤하운송", origin: "엔바이오텍", destination: "김포대곶" },
-  { shipper: "윤하운송", origin: "신세계까사", destination: "용인원삼" },
-  { shipper: "윤하운송", origin: "동진이노켐", destination: "시흥정왕3" },
-  { shipper: "윤하운송", origin: "피시스", destination: "용인양지" },
-  { shipper: "윤하운송", origin: "스패드코리아", destination: "김포고촌" },
-  { shipper: "윤하운송", origin: "블루산업개발", destination: "평택진위" },
-  { shipper: "윤하운송", origin: "케미랜드", destination: "안성미양" },
-  { shipper: "윤하운송", origin: "코스알엑스", destination: "안성대덕" },
-  { shipper: "윤하운송", origin: "서산대산", destination: "코오롱" },
-  { shipper: "윤하운송", origin: "포천군내", destination: "하도FNC" },
-  { shipper: "윤하운송", origin: "화성우정", destination: "태양코퍼레이션" },
-  { shipper: "윤하운송", origin: "인천픽업", destination: "인천픽업" },
-  { shipper: "윤하운송", origin: "안성안성3", destination: "서울우유" },
-  { shipper: "윤하운송", origin: "인천송도1", destination: "토비스" },
-  { shipper: "윤하운송", origin: "화성양감", destination: "JNP글로벌" },
-  { shipper: "윤하운송", origin: "부평일신", destination: "제이원통상" },
-  { shipper: "윤하운송", origin: "화성양감", destination: "완화케미칼" },
-  { shipper: "윤하운송", origin: "김포대곶", destination: "루이켐" },
-  { shipper: "윤하운송", origin: "파주광탄", destination: "경동산업" },
-  { shipper: "윤하운송", origin: "당진석문", destination: "한일화학" },
-  { shipper: "윤하운송", origin: "용인포곡", destination: "디자인코지" },
-  { shipper: "윤하운송", origin: "인천논현고잔", destination: "피엔티할멧트" },
-  { shipper: "윤하운송", origin: "화성마도", destination: "세븐코상사" },
-  { shipper: "윤하운송", origin: "양주광적", destination: "디아이동일" },
-  { shipper: "윤하운송", origin: "인천선픽업", destination: "인천선픽업" },
-  { shipper: "윤하운송", origin: "평택청북", destination: "원일전선" },
-  { shipper: "윤하운송", origin: "천안직산", destination: "보나크" },
-  { shipper: "윤하운송", origin: "포천선단", destination: "디아이동일" },
-  { shipper: "윤하운송", origin: "평택포승", destination: "만도" },
-  { shipper: "윤하운송", origin: "용인백암", destination: "투바이식스" },
-  { shipper: "윤하운송", origin: "이천설성", destination: "태양코퍼" },
-  { shipper: "윤하운송", origin: "이천백사", destination: "앤비파트너스" },
-  { shipper: "윤하운송", origin: "안성미양", destination: "코다코" },
-];
-
-const shippers = [...new Set(routeOptions.map((route) => route.shipper))];
 const CONTAINER_SPEC = "40";
-const MANUAL_SHIPPER = "__manual__";
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
 
 export default function NewDrivingPage() {
@@ -85,30 +15,13 @@ export default function NewDrivingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [shipper, setShipper] = useState<string>("");
-  const [manualShipper, setManualShipper] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
-  const isManual = shipper === MANUAL_SHIPPER;
-  const shipperName = (isManual ? manualShipper : shipper).trim();
+  const shipperName = shipper.trim();
 
-  const origins = [...new Set(routeOptions.filter((route) => route.shipper === shipper).map((route) => route.origin))];
-  const destinations = [...new Set(routeOptions.filter((route) => route.shipper === shipper && route.origin === origin).map((route) => route.destination))];
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
-
-  function handleShipperChange(value: string) {
-    setShipper(value);
-    setManualShipper("");
-    setOrigin("");
-    setDestination("");
-    setError("");
-  }
-
-  function handleOriginChange(value: string) {
-    setOrigin(value);
-    setDestination("");
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -116,7 +29,7 @@ export default function NewDrivingPage() {
     setError("");
     const amount = Number(chargeAmount);
     if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
-      setError("화주와 구간을 입력하거나 선택하고, 컨테이너 번호와 청구가액을 확인해 주세요.");
+      setError("화주·출발지·도착지를 입력하고, 컨테이너 번호와 청구가액을 확인해 주세요.");
       return;
     }
     setSaving(true);
@@ -145,44 +58,23 @@ export default function NewDrivingPage() {
   return (
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록 입력</h1>
-        <p className="mt-2 text-sm text-slate-500">화주와 구간을 선택하거나, 직접 입력으로 새로운 운행 내역을 등록해 주세요.</p>
+        <p className="mt-2 text-sm text-slate-500">화주·출발지·도착지를 직접 입력해 운행 내역을 등록해 주세요.</p>
         <form onSubmit={handleSubmit} className="mt-7">
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
-            <select id="driving-shipper" required value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
-              <option value="">화주 선택</option>
-              {shippers.map((value) => <option key={value} value={value}>{value}</option>)}
-              <option value={MANUAL_SHIPPER}>직접 입력</option>
-            </select>
-            {isManual && (
-              <div className="mt-3">
-                <label htmlFor="driving-manual-shipper" className="mb-2 block text-sm font-semibold">화주명 직접 입력</label>
-                <input id="driving-manual-shipper" required type="text" value={manualShipper} onChange={(event) => setManualShipper(event.target.value)} placeholder="화주명을 입력해 주세요" className={fieldClass} />
-              </div>
-            )}
+            <input id="driving-shipper" required type="text" value={shipper} onChange={(event) => setShipper(event.target.value)} placeholder="화주명을 입력해 주세요" className={fieldClass} />
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="driving-origin" className="mb-2 block font-semibold">출발지</label>
-              {isManual ? (
-                <input id="driving-origin" required type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="출발지를 입력해 주세요" className={fieldClass} />
-              ) : <select id="driving-origin" required value={origin} disabled={!shipper} onChange={(event) => handleOriginChange(event.target.value)} className={fieldClass}>
-                <option value="">{shipper ? "출발지 선택" : "화주를 먼저 선택해 주세요"}</option>
-                {origins.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>}
+              <input id="driving-origin" required type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="출발지를 입력해 주세요" className={fieldClass} />
             </div>
             <div>
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
-              {isManual ? (
-                <input id="driving-destination" required type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder="도착지를 입력해 주세요" className={fieldClass} />
-              ) : <select id="driving-destination" required value={destination} disabled={!origin} onChange={(event) => setDestination(event.target.value)} className={fieldClass}>
-                <option value="">{origin ? "도착지 선택" : "출발지를 먼저 선택해 주세요"}</option>
-                {destinations.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>}
+              <input id="driving-destination" required type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder="도착지를 입력해 주세요" className={fieldClass} />
             </div>
           </div>
-          <p className="text-sm text-slate-500">{isManual ? "화주·출발지·도착지를 모두 직접 입력할 수 있습니다." : "7월·9월 명세서에서 확인한 주요 구간을 기준으로 한 선택지입니다."}</p>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
               {shipperName || "화주 입력 중"} · {origin} → {destination}
