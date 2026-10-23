@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
-import { DRIVING_API_URL as API_URL, fetchDrivingRecords, type DrivingRecord } from "../../lib/drivingRecords";
+import { DRIVING_API_URL as API_URL, fetchDrivingRecords, sumDrivingCharges, type DrivingRecord } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
 const columns = ["일자", "구분", "화주", "지역", "지역", "라인", "규격", "CNTR", "청구가액", "세액", "비고"];
 
@@ -19,6 +19,7 @@ function formatAmount(value: number | string | null) {
 
 export default function DrivingPage() {
   const [records, setRecords] = useState<DrivingRecord[]>([]);
+  const [totalChargeAmount, setTotalChargeAmount] = useState("0");
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState("");
@@ -53,12 +54,15 @@ export default function DrivingPage() {
     try {
       const data = await fetchDrivingRecords(selectedYear, selectedMonth, signal);
       if (signal?.aborted) return;
+      const total = sumDrivingCharges(data);
       setRecords(data);
+      setTotalChargeAmount(total);
       appliedQuery.current = { year: selectedYear, month: selectedMonth };
       setAppliedPeriod(selectedYear ? `${selectedYear}년 ${selectedMonth ? `${selectedMonth}월` : "전체 월"}` : "전체 기간");
     } catch {
       if (signal?.aborted) return;
       setRecords([]);
+      setTotalChargeAmount("0");
       setError("운행기록을 불러오지 못했습니다. 잠시 후 다시 조회해 주세요.");
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -180,10 +184,10 @@ export default function DrivingPage() {
             {downloading ? "파일 만드는 중..." : "엑셀로 저장하기"}
           </button>
         </div>
-        <p className="mt-3 text-right text-sm text-slate-500">엑셀 저장 기간: {year && month ? `${year}년 ${Number(month)}월` : "전체 기간"}</p>
-        <div className="mt-7 flex items-center justify-between gap-3 text-sm text-slate-500">
+        <p className="mt-4 text-right text-lg font-semibold text-slate-700 sm:text-xl">엑셀 저장 기간: {year && month ? `${year}년 ${Number(month)}월` : "전체 기간"}</p>
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-3 text-slate-500">
           <h2 className="font-semibold text-slate-700">운행기록</h2>
-          {hasSearched && !loading && !error && <p>{appliedPeriod} · 총 {records.length}건</p>}
+          {hasSearched && !loading && !error && <p className="text-lg font-semibold text-slate-700 sm:text-xl">{appliedPeriod} · 총 <span className="text-blue-700">{records.length.toLocaleString("ko-KR")}건</span></p>}
         </div>
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         {downloadError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>}
@@ -236,6 +240,13 @@ export default function DrivingPage() {
             </tbody>
           </table>
         </div>
+        {hasSearched && !loading && !error && (
+          <div aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
+            <p className="text-base font-medium text-slate-600">{appliedPeriod} · 청구가액 합계</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{BigInt(totalChargeAmount).toLocaleString("ko-KR")}원</p>
+            <p className="mt-1 text-sm text-slate-500">조회한 전체 기록 기준 · 세액 제외</p>
+          </div>
+        )}
         <p className="mt-2 text-right text-xs text-slate-500">금액 단위: 원 · 표를 좌우로 밀어 모든 항목을 확인할 수 있습니다.</p>
         <form onSubmit={handlePeriodSearch} className="mt-6 flex flex-wrap items-end justify-center gap-3 rounded-xl bg-slate-50 px-4 py-5">
           <div>

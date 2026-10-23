@@ -18,6 +18,13 @@ export interface DrivingRecord {
 
 export const DRIVING_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
+export function sumDrivingCharges(records: DrivingRecord[]): string {
+  return records.reduce((sum, record) => {
+    const amount = String(record.charge_amount).replaceAll(",", "").trim();
+    return sum + BigInt(amount);
+  }, BigInt(0)).toString();
+}
+
 export async function fetchDrivingRecords(year = "", month = "", signal?: AbortSignal): Promise<DrivingRecord[]> {
   const params = new URLSearchParams();
   if (year) params.set("year", year);
