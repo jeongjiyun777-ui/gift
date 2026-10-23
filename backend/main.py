@@ -1,6 +1,6 @@
 import os
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Path, Query
@@ -35,17 +35,21 @@ app.add_middleware(
 
 
 @app.get("/gifts")
-def get_gifts(name: str | None = Query(default=None, description="이름 일부 검색")):
+def get_gifts(
+    name: str | None = Query(default=None, description="이름 일부 검색"),
+    direction: Literal["received", "paid"] = "received",
+):
     search_name = name.strip() if name and name.strip() else None
 
     query = text("""
-        SELECT id, name, amount
+        SELECT id, name, amount, direction
         FROM public.gifts
-        WHERE (:search_name IS NULL OR name ILIKE :name_pattern)
+        WHERE direction = :direction AND (:search_name IS NULL OR name ILIKE :name_pattern)
         ORDER BY id
     """)
     params = {
         "search_name": search_name,
+        "direction": direction,
         "name_pattern": f"%{search_name}%" if search_name else None,
     }
 
@@ -126,16 +130,18 @@ def delete_driving_records(selection: DrivingRecordDelete):
 
 @app.get("/gifts/total", summary="축의금 총액 조회")
 def get_gifts_total(
-    name: str | None = Query(default=None, description="이름 일부 검색. 비워두면 전체 총액")
+    name: str | None = Query(default=None, description="이름 일부 검색. 비워두면 전체 총액"),
+    direction: Literal["received", "paid"] = "received",
 ) -> dict[str, int]:
     search_name = name.strip() if name and name.strip() else None
     query = text("""
         SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount
         FROM public.gifts
-        WHERE (:search_name IS NULL OR name ILIKE :name_pattern)
+        WHERE direction = :direction AND (:search_name IS NULL OR name ILIKE :name_pattern)
     """)
     params = {
         "search_name": search_name,
+        "direction": direction,
         "name_pattern": f"%{search_name}%" if search_name else None,
     }
     with engine.connect() as conn:
@@ -147,6 +153,7 @@ def get_gifts_total(
 class GiftCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
+    direction: Literal["received", "paid"] = "received"
     name: str = Field(min_length=1)
     amount: int = Field(strict=True, ge=0, le=9223372036854775807)
 
@@ -158,9 +165,9 @@ class GiftResponse(GiftCreate):
 @app.post("/gifts", status_code=201, response_model=GiftResponse, summary="축의금 입력")
 def create_gift(gift: GiftCreate):
     query = text("""
-        INSERT INTO public.gifts (name, amount)
-        VALUES (:name, :amount)
-        RETURNING id, name, amount
+        INSERT INTO public.gifts (name, amount, direction)
+        VALUES (:name, :amount, :direction)
+        RETURNING id, name, amount, direction
     """)
     with engine.begin() as conn:
         row = conn.execute(query, gift.model_dump()).mappings().one()
@@ -168,6 +175,7 @@ def create_gift(gift: GiftCreate):
 
 
 class GiftDelete(BaseModel):
+    direction: Literal["received", "paid"] = "received"
     ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1)
 
 
@@ -176,11 +184,11 @@ def delete_gifts(selection: GiftDelete) -> dict[str, int]:
     ids = sorted(set(selection.ids))
     query = text("""
         DELETE FROM public.gifts
-        WHERE id IN :ids
+        WHERE id IN :ids AND direction = :direction
         RETURNING id
     """).bindparams(bindparam("ids", expanding=True))
     with engine.begin() as conn:
-        deleted = conn.execute(query, {"ids": ids}).all()
+        deleted = conn.execute(query, {"ids": ids, "direction": selection.direction}).all()
         if len(deleted) != len(ids):
             raise HTTPException(
                 status_code=409,
