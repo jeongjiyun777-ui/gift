@@ -6,6 +6,7 @@ export interface DrivingRecord {
   region_1: string | null;
   region_2: string | null;
   shipping_line: string | null;
+  km: number | null;
   container_spec: string | null;
   container_no: string | null;
   charge_amount: number | string;
@@ -39,4 +40,8 @@ export async function fetchDrivingRecords(year: string, month: string, signal?: 
   const data: unknown = await response.json();
   if (!Array.isArray(data)) throw new Error("운행기록 응답 형식 오류");
   return data as DrivingRecord[];
+}
+
+export function isValidKm(value: string): boolean {
+  return /^[1-9][0-9]{0,3}$/.test(value.trim());
 }

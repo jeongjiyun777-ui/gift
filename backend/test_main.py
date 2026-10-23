@@ -3,7 +3,7 @@ import os
 import sqlite3
 import unittest
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -29,6 +29,7 @@ class DrivingRecordTests(unittest.TestCase):
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
                     category TEXT, shipper_name TEXT NOT NULL,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
+                    km INTEGER CHECK (km BETWEEN 1 AND 9999),
                     container_spec TEXT, container_no TEXT,
                     charge_amount BIGINT NOT NULL, tax_amount BIGINT,
                     memo TEXT, vehicle_number TEXT, recipient_name TEXT,
@@ -63,7 +64,7 @@ class DrivingRecordTests(unittest.TestCase):
 
     def test_all_business_fields_are_mapped(self):
         payload = dict(operated_on=date(2026, 9, 8), category="운송",
-                       shipper_name="검증 화주", region_1="출발", region_2="도착",
+                       shipper_name="검증 화주", region_1="출발", region_2="도착", km=125,
                        shipping_line="라인", container_spec="40", container_no="TEST1234567",
                        charge_amount=100000, tax_amount=10000, memo="확인",
                        vehicle_number="테스트차량", recipient_name="테스트수신인")
@@ -111,6 +112,45 @@ class DrivingRecordTests(unittest.TestCase):
         main.update_driving_record(1, main.DrivingRecordUpdate(operated_on=date(2026, 10, 2)))
         self.assertEqual(main.get_driving_records(2026, 9), [])
         self.assertEqual(len(main.get_driving_records(2026, 10)), 2)
+
+    def test_km_boundaries_and_partial_update(self):
+        for km in [1, 9999]:
+            with self.subTest(km=km):
+                result = main.update_driving_record(1, main.DrivingRecordUpdate(km=km))
+                self.assertEqual(result["km"], km)
+                self.assertEqual(result["charge_amount"], 357300)
+        rows = main.get_driving_records(None, None)
+        self.assertIsNone(rows[1]["km"])
+
+    def test_km_rejects_invalid_api_values(self):
+        for km in [0, -1, 10000, 1.5, "12", True, None]:
+            with self.subTest(km=km), self.assertRaises(ValidationError):
+                main.DrivingRecordUpdate(km=km)
+        for km in [1, 9999]:
+            self.assertEqual(main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=km).km, km)
+        with self.assertRaises(ValidationError):
+            main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100)
+        for km in [0, -1, 10000, 1.5, "12", True, None]:
+            with self.subTest(create_km=km), self.assertRaises(ValidationError):
+                main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=km)
+
+    def test_create_passes_km_to_insert_and_response(self):
+        fake_engine = MagicMock()
+        connection = fake_engine.begin.return_value.__enter__.return_value
+        connection.execute.return_value.mappings.return_value.one.return_value = {"id": 3, "km": 125}
+        with patch.object(main, "engine", fake_engine):
+            result = main.create_driving_record(main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=125))
+        query, params = connection.execute.call_args.args
+        self.assertEqual(params["km"], 125)
+        self.assertIn(":km", str(query))
+        self.assertEqual(result["km"], 125)
+
+    def test_database_km_constraint(self):
+        from sqlalchemy.exc import IntegrityError
+        for km in [0, -1, 10000]:
+            with self.subTest(km=km), self.assertRaises(IntegrityError):
+                with self.engine.begin() as conn:
+                    conn.execute(text("UPDATE public.driving_records SET km=:km WHERE id=1"), {"km": km})
 
     def test_swagger_exposes_patch_and_post_delete(self):
         paths = main.app.openapi()["paths"]

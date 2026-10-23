@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { DRIVING_API_URL, type DrivingRecord } from "../lib/drivingRecords";
+import { DRIVING_API_URL, isValidKm, type DrivingRecord } from "../lib/drivingRecords";
 
 type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at">;
 const fields: { key: EditableField; label: string; type?: string }[] = [
@@ -11,6 +11,7 @@ const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "shipper_name", label: "화주" },
   { key: "region_1", label: "지역 (출발지)" },
   { key: "region_2", label: "지역 (도착지)" },
+  { key: "km", label: "거리 (km)" },
   { key: "shipping_line", label: "라인" },
   { key: "container_spec", label: "규격" },
   { key: "container_no", label: "CNTR" },
@@ -40,7 +41,10 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
     for (const { key, type } of fields) {
       const value = values[key].trim();
       if (value === original[key].trim()) continue;
-      if (type === "number" && value !== "") {
+      if (key === "km") {
+        if (!isValidKm(value)) { setError("운행거리는 1~9999km의 정수로 입력해 주세요."); return; }
+        changes[key] = Number(value);
+      } else if (type === "number" && value !== "") {
         const amount = Number(value);
         if (!Number.isSafeInteger(amount) || amount < 0) {
           setError("금액은 0 이상의 정수로 입력해 주세요.");
@@ -78,7 +82,8 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
             <input id={`edit-${key}`} type={type ?? "text"} value={values[key]}
               required={["operated_on", "shipper_name", "charge_amount", "container_spec"].includes(key)}
               min={type === "number" ? "0" : undefined} step={type === "number" ? "1" : undefined}
-              readOnly={key === "container_spec"} pattern={key === "container_no" ? "[A-Z]{4}[0-9]{7}" : undefined}
+              inputMode={key === "km" ? "numeric" : undefined} maxLength={key === "km" ? 4 : undefined}
+              readOnly={key === "container_spec"} pattern={key === "km" ? "[1-9][0-9]{0,3}" : key === "container_no" ? "[A-Z]{4}[0-9]{7}" : undefined}
               onChange={(event) => setValues((previous) => ({ ...previous, [key]: key === "container_no" ? event.target.value.replace(/\s/g, "").toUpperCase() : event.target.value }))}
               className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 read-only:bg-slate-100" />
           </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { isValidKm } from "../../../lib/drivingRecords";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -20,6 +21,7 @@ export default function NewDrivingPage() {
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
+  const [km, setKm] = useState("");
   const shipperName = shipper.trim();
 
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
@@ -35,6 +37,10 @@ export default function NewDrivingPage() {
     event.preventDefault();
     if (saving) return;
     setError("");
+    if (!isValidKm(km)) {
+      setError("운행거리는 1~9999km의 정수로 입력해 주세요.");
+      return;
+    }
     const amount = Number(chargeAmount);
     if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
       setError("화주를 선택하고 출발지·도착지, 컨테이너 번호와 청구가액을 확인해 주세요.");
@@ -49,6 +55,7 @@ export default function NewDrivingPage() {
           shipper_name: shipperName,
           region_1: origin.trim(),
           region_2: destination.trim(),
+          km: Number(km),
           container_spec: CONTAINER_SPEC,
           container_no: containerNo || null,
           charge_amount: amount,
@@ -85,6 +92,11 @@ export default function NewDrivingPage() {
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
               <input id="driving-destination" required disabled={!shipper} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={shipper ? "도착지를 입력해 주세요" : "화주를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
+          </div>
+          <div>
+            <label htmlFor="driving-km" className="mb-2 block font-semibold">거리 (km)</label>
+            <input id="driving-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,3}" maxLength={4} value={km} onChange={(event) => setKm(event.target.value)} placeholder="예: 125" aria-describedby="driving-km-hint" className={fieldClass} />
+            <p id="driving-km-hint" className="mt-2 text-sm text-slate-500">1~9999km의 정수로 입력해 주세요.</p>
           </div>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">

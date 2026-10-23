@@ -212,8 +212,8 @@ export default function Home() {
                       />
                     </th>
                     <th scope="col" className="w-20 px-4 py-3 text-center font-medium">번호</th>
-                    <th scope="col" className="px-4 py-3 font-medium">이름</th>
-                    <th scope="col" className="px-4 py-3 text-right font-medium">금액</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">이름</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">금액</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
