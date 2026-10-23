@@ -17,6 +17,20 @@ type GiftTotal = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 
+async function fetchGifts(name: string, signal?: AbortSignal) {
+  const query = name.trim() ? `?name=${encodeURIComponent(name.trim())}` : "";
+  const [response, totalResponse] = await Promise.all([
+    fetch(`${API_URL}/gifts${query}`, { cache: "no-store", signal }),
+    fetch(`${API_URL}/gifts/total${query}`, { cache: "no-store", signal }),
+  ]);
+  if (!response.ok || !totalResponse.ok) {
+    throw new Error("조회 요청에 실패했습니다.");
+  }
+  const gifts: Gift[] = await response.json();
+  const total: GiftTotal = await totalResponse.json();
+  return { gifts, total };
+}
+
 export default function Home() {
   const [searchName, setSearchName] = useState<string>("");
   const [appliedName, setAppliedName] = useState<string>("");
@@ -30,48 +44,63 @@ export default function Home() {
   const [deleteError, setDeleteError] = useState<string>("");
   const [deleteMessage, setDeleteMessage] = useState<string>("");
 
-  const loadGifts = useCallback(async (name: string) => {
+  function prepareSearch() {
     setLoading(true);
     setError("");
     setCurrentPage(1);
     setSelectedIds([]);
     setDeleteError("");
     setDeleteMessage("");
+  }
 
+  const loadGifts = useCallback(async (name: string, signal?: AbortSignal) => {
     try {
-      const query = name.trim()
-        ? `?name=${encodeURIComponent(name.trim())}`
-        : "";
-      const [response, totalResponse] = await Promise.all([
-        fetch(`${API_URL}/gifts${query}`, { cache: "no-store" }),
-        fetch(`${API_URL}/gifts/total${query}`, { cache: "no-store" }),
-      ]);
-
-      if (!response.ok || !totalResponse.ok) {
-        throw new Error("조회 요청에 실패했습니다.");
-      }
-
-      const data: Gift[] = await response.json();
-      const total: GiftTotal = await totalResponse.json();
-      setGifts(data);
+      const { gifts, total } = await fetchGifts(name, signal);
+      if (signal?.aborted) return;
+      setGifts(gifts);
       setTotalAmount(total.total_amount);
       setAppliedName(name.trim());
     } catch {
+      if (signal?.aborted) return;
       setGifts([]);
       setTotalAmount(null);
       setError("서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인해 주세요.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadGifts("");
-  }, [loadGifts]);
+    const controller = new AbortController();
+    async function loadInitialGifts() {
+      try {
+        const { gifts, total } = await fetchGifts("", controller.signal);
+        if (controller.signal.aborted) return;
+        setGifts(gifts);
+        setTotalAmount(total.total_amount);
+      } catch {
+        if (controller.signal.aborted) return;
+        setError("서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인해 주세요.");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    void loadInitialGifts();
+    return () => controller.abort();
+  }, []);
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading || deleting) return;
+    prepareSearch();
     void loadGifts(searchName);
+  }
+
+  function handleShowAll() {
+    if (loading || deleting) return;
+    setSearchName("");
+    prepareSearch();
+    void loadGifts("");
   }
 
   async function handleDelete() {
@@ -97,6 +126,7 @@ export default function Home() {
       }
       if (!response.ok) throw new Error("삭제 실패");
       const result: { deleted_count: number } = await response.json();
+      prepareSearch();
       await loadGifts(appliedName);
       setDeleteMessage(`${result.deleted_count}건을 삭제했습니다.`);
     } catch {
@@ -154,10 +184,7 @@ export default function Home() {
           <button
             type="button"
             disabled={loading || deleting}
-            onClick={() => {
-              setSearchName("");
-              void loadGifts("");
-            }}
+            onClick={handleShowAll}
             className="shrink-0 rounded-lg border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
           >
             전체 보기
@@ -216,7 +243,7 @@ export default function Home() {
                     <th scope="col" className="px-4 py-3 text-center font-medium">금액</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 [&_td]:text-center">
                   {visibleGifts.map((gift) => (
                     <tr key={gift.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-center">
@@ -232,8 +259,8 @@ export default function Home() {
                         />
                       </td>
                       <td className="px-4 py-3 text-center text-slate-500">{gift.id}</td>
-                      <td className="px-4 py-3 font-medium">{gift.name}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="px-4 py-3 text-center font-medium">{gift.name}</td>
+                      <td className="px-4 py-3 text-center tabular-nums">
                         {gift.amount.toLocaleString("ko-KR")}원
                       </td>
                     </tr>
