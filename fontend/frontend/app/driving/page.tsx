@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
 import { DRIVING_API_URL as API_URL, type DrivingRecord } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["번호", "일자", "구분", "화주", "지역", "지역", "라인", "규격", "CNTR", "청구가액", "세액", "비고"];
+const columns = ["일자", "구분", "화주", "지역", "지역", "라인", "규격", "CNTR", "청구가액", "세액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
@@ -196,7 +196,7 @@ export default function DrivingPage() {
                   <input type="checkbox" aria-label="조회 결과 전체 선택" disabled={loading || deleting || Boolean(editing) || !records.length} checked={records.length > 0 && selectedIds.length === records.length} onChange={(event) => setSelectedIds(event.target.checked ? records.map((record) => String(record.id)) : [])} />
                 </th>
                 {columns.map((label, index) => (
-                  <th key={`${label}-${index}`} scope="col" aria-label={index === 4 ? "첫 번째 지역" : index === 5 ? "두 번째 지역" : label} className="whitespace-nowrap border-b border-r border-slate-200 px-4 py-3 text-center font-semibold last:border-r-0">
+                  <th key={`${label}-${index}`} scope="col" aria-label={index === 3 ? "첫 번째 지역" : index === 4 ? "두 번째 지역" : label} className="whitespace-nowrap border-b border-r border-slate-200 px-4 py-3 text-center font-semibold last:border-r-0">
                     {label}
                   </th>
                 ))}
@@ -212,7 +212,6 @@ export default function DrivingPage() {
               ) : visibleRecords.map((record) => (
                 <tr key={record.id} className="hover:bg-slate-50">
                   <td className="text-center"><input type="checkbox" aria-label={`${record.id}번 운행기록 선택`} disabled={loading || deleting || Boolean(editing)} checked={selectedIds.includes(String(record.id))} onChange={() => toggleSelection(String(record.id))} /></td>
-                  <td className="text-center tabular-nums text-slate-500">{record.id}</td>
                   <td className="whitespace-nowrap text-center">{record.operated_on}</td>
                   <td className="text-center">{displayText(record.category)}</td>
                   <td className="font-medium">{record.shipper_name}</td>
