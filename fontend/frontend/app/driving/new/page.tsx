@@ -13,7 +13,7 @@ interface DrivingRoute {
   destination: string;
 }
 
-// 9월 명세서에서 확인한 주요 구간. DB 운행기록과는 별도의 화면 선택지입니다.
+// 7월·9월 명세서에서 확인한 주요 구간. DB 운행기록과는 별도의 화면 선택지입니다.
 const routeOptions: DrivingRoute[] = [
   { shipper: "삼성로지텍", origin: "한진신항", destination: "화성A" },
   { shipper: "삼성로지텍", origin: "한진신항", destination: "화성B" },
@@ -40,6 +40,39 @@ const routeOptions: DrivingRoute[] = [
   { shipper: "윤하운송", origin: "메인로드", destination: "인천오류왕" },
   { shipper: "윤하운송", origin: "탑코리아", destination: "인천연안" },
   { shipper: "윤하운송", origin: "포지션", destination: "포지션" },
+  { shipper: "윤하운송", origin: "엔바이오텍", destination: "김포대곶" },
+  { shipper: "윤하운송", origin: "신세계까사", destination: "용인원삼" },
+  { shipper: "윤하운송", origin: "동진이노켐", destination: "시흥정왕3" },
+  { shipper: "윤하운송", origin: "피시스", destination: "용인양지" },
+  { shipper: "윤하운송", origin: "스패드코리아", destination: "김포고촌" },
+  { shipper: "윤하운송", origin: "블루산업개발", destination: "평택진위" },
+  { shipper: "윤하운송", origin: "케미랜드", destination: "안성미양" },
+  { shipper: "윤하운송", origin: "코스알엑스", destination: "안성대덕" },
+  { shipper: "윤하운송", origin: "서산대산", destination: "코오롱" },
+  { shipper: "윤하운송", origin: "포천군내", destination: "하도FNC" },
+  { shipper: "윤하운송", origin: "화성우정", destination: "태양코퍼레이션" },
+  { shipper: "윤하운송", origin: "인천픽업", destination: "인천픽업" },
+  { shipper: "윤하운송", origin: "안성안성3", destination: "서울우유" },
+  { shipper: "윤하운송", origin: "인천송도1", destination: "토비스" },
+  { shipper: "윤하운송", origin: "화성양감", destination: "JNP글로벌" },
+  { shipper: "윤하운송", origin: "부평일신", destination: "제이원통상" },
+  { shipper: "윤하운송", origin: "화성양감", destination: "완화케미칼" },
+  { shipper: "윤하운송", origin: "김포대곶", destination: "루이켐" },
+  { shipper: "윤하운송", origin: "파주광탄", destination: "경동산업" },
+  { shipper: "윤하운송", origin: "당진석문", destination: "한일화학" },
+  { shipper: "윤하운송", origin: "용인포곡", destination: "디자인코지" },
+  { shipper: "윤하운송", origin: "인천논현고잔", destination: "피엔티할멧트" },
+  { shipper: "윤하운송", origin: "화성마도", destination: "세븐코상사" },
+  { shipper: "윤하운송", origin: "양주광적", destination: "디아이동일" },
+  { shipper: "윤하운송", origin: "인천선픽업", destination: "인천선픽업" },
+  { shipper: "윤하운송", origin: "평택청북", destination: "원일전선" },
+  { shipper: "윤하운송", origin: "천안직산", destination: "보나크" },
+  { shipper: "윤하운송", origin: "포천선단", destination: "디아이동일" },
+  { shipper: "윤하운송", origin: "평택포승", destination: "만도" },
+  { shipper: "윤하운송", origin: "용인백암", destination: "투바이식스" },
+  { shipper: "윤하운송", origin: "이천설성", destination: "태양코퍼" },
+  { shipper: "윤하운송", origin: "이천백사", destination: "앤비파트너스" },
+  { shipper: "윤하운송", origin: "안성미양", destination: "코다코" },
 ];
 
 const shippers = [...new Set(routeOptions.map((route) => route.shipper))];
@@ -149,7 +182,7 @@ export default function NewDrivingPage() {
               </select>}
             </div>
           </div>
-          <p className="text-sm text-slate-500">{isManual ? "화주·출발지·도착지를 모두 직접 입력할 수 있습니다." : "9월 명세서에서 확인한 주요 구간을 기준으로 한 선택지입니다."}</p>
+          <p className="text-sm text-slate-500">{isManual ? "화주·출발지·도착지를 모두 직접 입력할 수 있습니다." : "7월·9월 명세서에서 확인한 주요 구간을 기준으로 한 선택지입니다."}</p>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
               {shipperName || "화주 입력 중"} · {origin} → {destination}
