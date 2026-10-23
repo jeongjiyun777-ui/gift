@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
-type Gift = {
-  id: number;
-  name: string;
-  amount: number;
-};
+import { displayGiftText, giftEndpoint } from "@/lib/gifts";
+import type { Gift } from "@/lib/gifts";
 
 type GiftTotal = {
   count: number;
@@ -18,12 +15,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 
 async function fetchGifts(name: string, direction: "received" | "paid", signal?: AbortSignal) {
-  const params = new URLSearchParams({ direction });
+  const params = new URLSearchParams();
+  const endpoint = giftEndpoint(direction);
   if (name.trim()) params.set("name", name.trim());
   const query = `?${params.toString()}`;
   const [response, totalResponse] = await Promise.all([
-    fetch(`${API_URL}/gifts${query}`, { cache: "no-store", signal }),
-    fetch(`${API_URL}/gifts/total${query}`, { cache: "no-store", signal }),
+    fetch(`${API_URL}${endpoint}${query}`, { cache: "no-store", signal }),
+    fetch(`${API_URL}${endpoint}/total${query}`, { cache: "no-store", signal }),
   ]);
   if (!response.ok || !totalResponse.ok) {
     throw new Error("조회 요청에 실패했습니다.");
@@ -118,7 +116,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
     setDeleteError("");
     setDeleteMessage("");
     try {
-      const response = await fetch(`${API_URL}/gifts`, {
+      const response = await fetch(`${API_URL}${giftEndpoint(direction)}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: selectedGifts.map((gift) => gift.id), direction }),
@@ -228,7 +226,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
         ) : (
           <>
             <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-left text-sm sm:text-base">
+              <table className="w-full text-center text-sm sm:text-base [&_th]:whitespace-nowrap">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th scope="col" className="w-12 px-4 py-3 text-center">
@@ -243,6 +241,13 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
                     </th>
                     <th scope="col" className="w-20 px-4 py-3 text-center font-medium">번호</th>
                     <th scope="col" className="px-4 py-3 text-center font-medium">이름</th>
+                    {direction === "paid" && (
+                      <>
+                        <th scope="col" className="px-4 py-3 text-center font-medium">종류</th>
+                        <th scope="col" className="px-4 py-3 text-center font-medium">세부사항</th>
+                        <th scope="col" className="px-4 py-3 text-center font-medium">장소</th>
+                      </>
+                    )}
                     <th scope="col" className="px-4 py-3 text-center font-medium">금액</th>
                   </tr>
                 </thead>
@@ -263,6 +268,13 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
                       </td>
                       <td className="px-4 py-3 text-center text-slate-500">{gift.id}</td>
                       <td className="px-4 py-3 text-center font-medium">{gift.name}</td>
+                      {direction === "paid" && (
+                        <>
+                          <td className="px-4 py-3">{displayGiftText(gift.category)}</td>
+                          <td className="px-4 py-3">{displayGiftText(gift.detail)}</td>
+                          <td className="px-4 py-3">{displayGiftText(gift.location)}</td>
+                        </>
+                      )}
                       <td className="px-4 py-3 text-center tabular-nums">
                         {gift.amount.toLocaleString("ko-KR")}원
                       </td>

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import bindparam, create_engine, text
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -34,6 +34,11 @@ app.add_middleware(
 )
 
 
+def gift_table(direction: str) -> str:
+    # SQL 식별자는 사용자 문자열이 아닌 고정된 두 테이블 중에서만 선택합니다.
+    return "public.paid_gifts" if direction == "paid" else "public.gifts"
+
+
 @app.get("/gifts")
 def get_gifts(
     name: str | None = Query(default=None, description="이름 일부 검색"),
@@ -41,9 +46,9 @@ def get_gifts(
 ):
     search_name = name.strip() if name and name.strip() else None
 
-    query = text("""
-        SELECT id, name, amount, direction
-        FROM public.gifts
+    query = text(f"""
+        SELECT id, name, amount, direction, category, detail, location
+        FROM {gift_table(direction)}
         WHERE direction = :direction AND (:search_name IS NULL OR name ILIKE :name_pattern)
         ORDER BY id
     """)
@@ -134,9 +139,9 @@ def get_gifts_total(
     direction: Literal["received", "paid"] = "received",
 ) -> dict[str, int]:
     search_name = name.strip() if name and name.strip() else None
-    query = text("""
+    query = text(f"""
         SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount
-        FROM public.gifts
+        FROM {gift_table(direction)}
         WHERE direction = :direction AND (:search_name IS NULL OR name ILIKE :name_pattern)
     """)
     params = {
@@ -154,8 +159,20 @@ class GiftCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     direction: Literal["received", "paid"] = "received"
+    category: str | None = Field(default=None, description="금액 종류. 예: 축의금, 조의금")
+    detail: str | None = Field(default=None, description="세부사항. 예: 자녀결혼")
+    location: str | None = Field(default=None, description="장소. 예: 예식장, 장례식장")
     name: str = Field(min_length=1)
     amount: int = Field(strict=True, ge=0, le=9223372036854775807)
+
+
+    @field_validator("category", "detail", "location", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return None if value in ("", "-") else value
+        return value
 
 
 class GiftResponse(GiftCreate):
@@ -164,10 +181,10 @@ class GiftResponse(GiftCreate):
 
 @app.post("/gifts", status_code=201, response_model=GiftResponse, summary="축의금 입력")
 def create_gift(gift: GiftCreate):
-    query = text("""
-        INSERT INTO public.gifts (name, amount, direction)
-        VALUES (:name, :amount, :direction)
-        RETURNING id, name, amount, direction
+    query = text(f"""
+        INSERT INTO {gift_table(gift.direction)} (name, amount, direction, category, detail, location)
+        VALUES (:name, :amount, :direction, :category, :detail, :location)
+        RETURNING id, name, amount, direction, category, detail, location
     """)
     with engine.begin() as conn:
         row = conn.execute(query, gift.model_dump()).mappings().one()
@@ -182,8 +199,8 @@ class GiftDelete(BaseModel):
 @app.delete("/gifts", summary="선택한 축의금 기록 삭제")
 def delete_gifts(selection: GiftDelete) -> dict[str, int]:
     ids = sorted(set(selection.ids))
-    query = text("""
-        DELETE FROM public.gifts
+    query = text(f"""
+        DELETE FROM {gift_table(selection.direction)}
         WHERE id IN :ids AND direction = :direction
         RETURNING id
     """).bindparams(bindparam("ids", expanding=True))
@@ -195,6 +212,34 @@ def delete_gifts(selection: GiftDelete) -> dict[str, int]:
                 detail="선택한 기록 중 이미 삭제된 기록이 있습니다. 새로 조회한 뒤 다시 선택하세요.",
             )
     return {"deleted_count": len(deleted)}
+
+
+class PaidGiftCreate(GiftCreate):
+    direction: Literal["paid"] = "paid"
+
+
+class PaidGiftDelete(GiftDelete):
+    direction: Literal["paid"] = "paid"
+
+
+@app.get("/paid-gifts", summary="낸 금액 조회")
+def get_paid_gifts(name: str | None = Query(default=None, description="이름 일부 검색")):
+    return get_gifts(name, "paid")
+
+
+@app.get("/paid-gifts/total", summary="낸 금액 합계")
+def get_paid_gifts_total(name: str | None = Query(default=None)):
+    return get_gifts_total(name, "paid")
+
+
+@app.post("/paid-gifts", status_code=201, response_model=GiftResponse, summary="낸 금액 저장")
+def create_paid_gift(gift: PaidGiftCreate):
+    return create_gift(gift)
+
+
+@app.delete("/paid-gifts", summary="선택한 낸 금액 삭제")
+def delete_paid_gifts(selection: PaidGiftDelete):
+    return delete_gifts(selection)
 
 
 class DrivingRecordCreate(BaseModel):

@@ -6,13 +6,17 @@ import type { FormEvent } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
-type Gift = { id: number; name: string; amount: number };
+import { giftEndpoint } from "@/lib/gifts";
+import type { Gift } from "@/lib/gifts";
 
 export default function GiftForm({ direction }: { direction: "received" | "paid" }) {
   const label = direction === "paid" ? "낸 금액" : "받은 금액";
   const listHref = direction === "paid" ? "/gifts/paid" : "/";
   const [name, setName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
+  const [category, setCategory] = useState<string>("축의금");
+  const [detail, setDetail] = useState<string>("");
+  const [location, setLocation] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [savedGift, setSavedGift] = useState<Gift | null>(null);
@@ -30,16 +34,25 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
     }
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/gifts`, {
+      const response = await fetch(`${API_URL}${giftEndpoint(direction)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmedName, amount: numericAmount, direction }),
+        body: JSON.stringify({
+          name: trimmedName, amount: numericAmount, direction,
+          ...(direction === "paid" ? {
+            category: category.trim() || null,
+            detail: detail.trim() || null,
+            location: location.trim() || null,
+          } : {}),
+        }),
       });
       if (!response.ok) throw new Error("저장 실패");
       const gift: Gift = await response.json();
       setSavedGift(gift);
       setName("");
       setAmount("");
+      setDetail("");
+      setLocation("");
     } catch {
       setError("저장을 확인하지 못했습니다. 조회 화면에서 내역을 확인한 뒤 다시 시도해 주세요.");
     } finally {
@@ -82,6 +95,26 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
               className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
             />
           </div>
+          {direction === "paid" && (
+            <>
+              <div>
+                <label htmlFor="gift-category" className="mb-2 block font-semibold">종류</label>
+                <select id="gift-category" value={category} onChange={(event) => setCategory(event.target.value)} disabled={saving} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base disabled:opacity-60">
+                  <option value="축의금">축의금</option>
+                  <option value="조의금">조의금</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="gift-detail" className="mb-2 block font-semibold">세부사항</label>
+                <input id="gift-detail" value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="예: 자녀결혼, 부친상" disabled={saving} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base disabled:opacity-60" />
+              </div>
+              <div>
+                <label htmlFor="gift-location" className="mb-2 block font-semibold">장소 (선택)</label>
+                <input id="gift-location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="없으면 비워 두세요" disabled={saving} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base disabled:opacity-60" />
+              </div>
+            </>
+          )}
           {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}
           {savedGift && (
             <p role="status" className="rounded-lg bg-green-50 p-4 text-green-800">
