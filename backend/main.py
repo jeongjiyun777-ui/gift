@@ -222,22 +222,22 @@ class PaidGiftDelete(GiftDelete):
     direction: Literal["paid"] = "paid"
 
 
-@app.get("/paid-gifts", summary="낸 금액 조회")
+@app.get("/paid-gifts", summary="지출금액 조회")
 def get_paid_gifts(name: str | None = Query(default=None, description="이름 일부 검색")):
     return get_gifts(name, "paid")
 
 
-@app.get("/paid-gifts/total", summary="낸 금액 합계")
+@app.get("/paid-gifts/total", summary="지출금액 합계")
 def get_paid_gifts_total(name: str | None = Query(default=None)):
     return get_gifts_total(name, "paid")
 
 
-@app.post("/paid-gifts", status_code=201, response_model=GiftResponse, summary="낸 금액 저장")
+@app.post("/paid-gifts", status_code=201, response_model=GiftResponse, summary="지출금액 저장")
 def create_paid_gift(gift: PaidGiftCreate):
     return create_gift(gift)
 
 
-@app.delete("/paid-gifts", summary="선택한 낸 금액 삭제")
+@app.delete("/paid-gifts", summary="선택한 지출금액 삭제")
 def delete_paid_gifts(selection: PaidGiftDelete):
     return delete_gifts(selection)
 

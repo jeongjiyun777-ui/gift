@@ -10,7 +10,7 @@ import { giftEndpoint } from "@/lib/gifts";
 import type { Gift } from "@/lib/gifts";
 
 export default function GiftForm({ direction }: { direction: "received" | "paid" }) {
-  const label = direction === "paid" ? "낸 금액" : "받은 금액";
+  const label = direction === "paid" ? "지출금액" : "받은 금액";
   const listHref = direction === "paid" ? "/gifts/paid" : "/";
   const [name, setName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");

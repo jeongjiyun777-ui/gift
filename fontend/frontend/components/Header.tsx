@@ -8,9 +8,9 @@ import { useState } from "react";
 
 const giftLinks = [
   { href: "/", label: "받은 금액 조회", icon: "gift" },
-  { href: "/gifts/paid", label: "낸 금액 조회", icon: "gift" },
+  { href: "/gifts/paid", label: "지출금액 조회", icon: "gift" },
   { href: "/gifts/new", label: "받은 금액 입력", icon: "add" },
-  { href: "/gifts/paid/new", label: "낸 금액 입력", icon: "add" },
+  { href: "/gifts/paid/new", label: "지출금액 입력", icon: "add" },
 ] as const;
 
 const drivingLinks = [

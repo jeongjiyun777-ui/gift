@@ -32,7 +32,7 @@ async function fetchGifts(name: string, direction: "received" | "paid", signal?:
 }
 
 export default function GiftList({ direction }: { direction: "received" | "paid" }) {
-  const label = direction === "paid" ? "낸 금액" : "받은 금액";
+  const label = direction === "paid" ? "지출금액" : "받은 금액";
   const [searchName, setSearchName] = useState<string>("");
   const [appliedName, setAppliedName] = useState<string>("");
   const [gifts, setGifts] = useState<Gift[]>([]);
@@ -145,7 +145,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
 
   return (
     <main className="flex-1 bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
-      <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
+      <section className="mx-auto flex min-w-0 w-full max-w-3xl flex-col rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{label} 조회</h1>
         <p className="mt-2 text-sm text-slate-500">
           찾으시는 분의 이름을 입력해 {label} 내역을 확인해 보세요.
@@ -225,8 +225,12 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
           <p className="py-14 text-center text-slate-500">검색 결과가 없습니다.</p>
         ) : (
           <>
-            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-center text-sm sm:text-base [&_th]:whitespace-nowrap">
+            <div className="mt-3 w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className={`w-full text-center text-sm sm:text-base [&_th]:whitespace-nowrap ${
+                direction === "paid"
+                  ? "min-w-[960px] [&_th]:px-6 [&_td]:px-6 [&_td]:py-4"
+                  : ""
+              }`}>
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th scope="col" className="w-12 px-4 py-3 text-center">
@@ -251,7 +255,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
                     <th scope="col" className="px-4 py-3 text-center font-medium">금액</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 [&_td]:text-center">
+                <tbody className="divide-y divide-slate-100 [&_td]:text-center [&_td]:align-middle [&_td]:whitespace-nowrap">
                   {visibleGifts.map((gift) => (
                     <tr key={gift.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-center">
