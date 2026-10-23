@@ -1,0 +1,122 @@
+"""실제 Neon 대신 메모리 DB로 실행: python -m unittest -v test_main.py"""
+import os
+import sqlite3
+import unittest
+from datetime import date
+from unittest.mock import patch
+
+from fastapi import HTTPException
+from pydantic import ValidationError
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import StaticPool
+
+sqlite3.register_adapter(date, lambda value: value.isoformat())
+
+with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
+    import main
+
+
+class DrivingRecordTests(unittest.TestCase):
+    def setUp(self):
+        # 각 테스트마다 새로운 메모리 DB와 두 개의 가상 기록을 준비합니다.
+        self.engine = create_engine("sqlite://", poolclass=StaticPool)
+        self.engine_patch = patch.object(main, "engine", self.engine)
+        self.engine_patch.start()
+        with self.engine.begin() as conn:
+            conn.execute(text("ATTACH DATABASE ':memory:' AS public"))
+            conn.execute(text("""
+                CREATE TABLE public.driving_records (
+                    id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
+                    category TEXT, shipper_name TEXT NOT NULL,
+                    region_1 TEXT, region_2 TEXT, shipping_line TEXT,
+                    container_spec TEXT, container_no TEXT,
+                    charge_amount BIGINT NOT NULL, tax_amount BIGINT,
+                    memo TEXT, vehicle_number TEXT, recipient_name TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """))
+            for record_id, operated_on in [(1, "2026-09-30"), (2, "2026-10-01")]:
+                conn.execute(text("""
+                    INSERT INTO public.driving_records
+                    (id, operated_on, shipper_name, container_spec, charge_amount, memo, created_at)
+                    VALUES (:id, :operated_on, '테스트 화주', '40', 357300, '기존 비고', '2026-10-23T00:00:00Z')
+                """), {"id": record_id, "operated_on": operated_on})
+
+    def tearDown(self):
+        self.engine_patch.stop()
+        self.engine.dispose()
+
+    def test_patch_only_changes_sent_fields(self):
+        # 준비: 금액만 변경하겠다는 요청을 만듭니다.
+        changes = main.DrivingRecordUpdate(charge_amount=400000)
+        # 실행: 실제 UPDATE 함수가 메모리 DB에서 동작합니다.
+        result = main.update_driving_record(1, changes)
+        # 확인: 금액은 변경되고, 보내지 않은 열과 등록 시각은 유지됩니다.
+        self.assertEqual(result["charge_amount"], 400000)
+        self.assertEqual(result["shipper_name"], "테스트 화주")
+        self.assertEqual(result["memo"], "기존 비고")
+        self.assertEqual(result["created_at"], "2026-10-23T00:00:00Z")
+
+    def test_patch_can_clear_optional_memo(self):
+        result = main.update_driving_record(1, main.DrivingRecordUpdate(memo=None))
+        self.assertIsNone(result["memo"])
+
+    def test_all_business_fields_are_mapped(self):
+        payload = dict(operated_on=date(2026, 9, 8), category="운송",
+                       shipper_name="검증 화주", region_1="출발", region_2="도착",
+                       shipping_line="라인", container_spec="40", container_no="TEST1234567",
+                       charge_amount=100000, tax_amount=10000, memo="확인",
+                       vehicle_number="테스트차량", recipient_name="테스트수신인")
+        result = main.update_driving_record(1, main.DrivingRecordUpdate(**payload))
+        for field, value in payload.items():
+            with self.subTest(field=field):
+                self.assertEqual(result[field], value.isoformat() if isinstance(value, date) else value)
+
+    def test_patch_missing_record_returns_404(self):
+        with self.assertRaises(HTTPException) as caught:
+            main.update_driving_record(999, main.DrivingRecordUpdate(memo="수정"))
+        self.assertEqual(caught.exception.status_code, 404)
+
+    def test_invalid_patch_is_rejected(self):
+        for payload in [{}, {"charge_amount": -1}, {"charge_amount": 1.5},
+                        {"shipper_name": " "}, {"operated_on": None},
+                        {"charge_amount": None}, {"id": 10},
+                        {"container_no": "bad"}, {"container_spec": "20"}]:
+            with self.subTest(payload=payload), self.assertRaises(ValidationError):
+                main.DrivingRecordUpdate(**payload)
+
+    def test_post_delete_selected_records_only(self):
+        result = main.delete_driving_records(main.DrivingRecordDelete(ids=[1, 1]))
+        self.assertEqual(result, {"deleted_count": 1})
+        remaining = main.get_driving_records(None, None)
+        self.assertEqual([row["id"] for row in remaining], [2])
+
+    def test_delete_rolls_back_if_any_record_is_missing(self):
+        with self.assertRaises(HTTPException) as caught:
+            main.delete_driving_records(main.DrivingRecordDelete(ids=[1, 999]))
+        self.assertEqual(caught.exception.status_code, 409)
+        # 1번 삭제도 함께 롤백되어 두 기록 모두 남아 있어야 합니다.
+        self.assertEqual(len(main.get_driving_records(None, None)), 2)
+
+    def test_delete_requires_explicit_ids(self):
+        for ids in [[], [0], [-1], ["1"]]:
+            with self.subTest(ids=ids), self.assertRaises(ValidationError):
+                main.DrivingRecordDelete(ids=ids)
+
+    def test_month_filter_excludes_next_month(self):
+        rows = main.get_driving_records(2026, 9)
+        self.assertEqual([row["id"] for row in rows], [1])
+
+    def test_changed_date_moves_record_to_another_month(self):
+        main.update_driving_record(1, main.DrivingRecordUpdate(operated_on=date(2026, 10, 2)))
+        self.assertEqual(main.get_driving_records(2026, 9), [])
+        self.assertEqual(len(main.get_driving_records(2026, 10)), 2)
+
+    def test_swagger_exposes_patch_and_post_delete(self):
+        paths = main.app.openapi()["paths"]
+        self.assertIn("patch", paths["/driving-records/{record_id}"])
+        self.assertIn("post", paths["/driving-records/delete"])
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
