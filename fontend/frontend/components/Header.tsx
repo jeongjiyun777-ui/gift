@@ -14,9 +14,10 @@ const giftLinks = [
 const drivingLinks = [
   { href: "/driving", label: "조회", icon: "car" },
   { href: "/driving/new", label: "입력", icon: "car" },
+  { href: "/driving/urea", label: "요소수", icon: "drop" },
 ] as const;
 
-function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" }) {
+function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" }) {
   return (
     <svg
       aria-hidden="true"
@@ -28,7 +29,12 @@ function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {icon === "car" ? (
+      {icon === "drop" ? (
+        <>
+          <path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11Z" />
+          <path d="M9 14a3 3 0 0 0 3 3" />
+        </>
+      ) : icon === "car" ? (
         <>
           <path d="m5 10 1.7-5.1A1.3 1.3 0 0 1 8 4h8a1.3 1.3 0 0 1 1.3.9L19 10" />
           <path d="M5 10h14a2 2 0 0 1 2 2v5H3v-5a2 2 0 0 1 2-2Z" />
@@ -150,7 +156,7 @@ export default function Header() {
               }`}
             >
               <HeaderIcon icon="car" />
-              운행기록
+              운행
               <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -162,7 +168,7 @@ export default function Header() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      aria-label={`운행기록 ${link.label}`}
+                      aria-label={`운행 ${link.label}`}
                       aria-current={pathname === link.href ? "page" : undefined}
                       onClick={() => setDrivingMenuOpen(false)}
                       className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
