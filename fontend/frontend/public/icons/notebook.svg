@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>노트에 기록하는 연필</title>
+  <rect width="512" height="512" rx="0" fill="#1e293b"/>
+  <rect x="118" y="101" width="244" height="310" rx="26" fill="#0f172a" opacity=".35"/>
+  <rect x="118" y="92" width="244" height="310" rx="26" fill="#60a5fa"/>
+  <rect x="142" y="104" width="208" height="284" rx="18" fill="#fffdf5"/>
+  <path d="M170 162h148M170 205h148M170 248h118M170 291h80M170 334h55" fill="none" stroke="#cbd5e1" stroke-width="10" stroke-linecap="round"/>
+  <path d="M139 136h16M139 179h16M139 222h16M139 265h16M139 308h16M139 351h16" stroke="#1e293b" stroke-width="12" stroke-linecap="round"/>
+  <path d="m252 310 99-114 35 30-99 114-49 17z" fill="#fbbf24" stroke="#1e293b" stroke-width="8" stroke-linejoin="round"/>
+  <path d="m351 196 13-15a13 13 0 0 1 18-1l16 14a13 13 0 0 1 1 18l-13 14z" fill="#fb7185" stroke="#1e293b" stroke-width="8" stroke-linejoin="round"/>
+  <path d="m252 310 35 30-49 17z" fill="#fde7c0"/>
+  <path d="m238 357 8-26 17 15z" fill="#1e293b"/>
+  <path d="m266 313 85-98" stroke="#fef3c7" stroke-width="7" stroke-linecap="round"/>
+</svg>

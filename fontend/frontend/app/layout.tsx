@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "../components/Header";
@@ -14,9 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "정정식 업무목록",
-  description: "축의금과 운행기록을 관리하는 정정식 업무목록",
+  title: "정정식 업무모음",
+  description: "축의금과 운행기록을 관리하는 정정식 업무모음",
+  applicationName: "정정식 업무모음",
+  icons: {
+    icon: [{ url: "/icons/notebook.svg", type: "image/svg+xml" }, { url: "/icons/notebook-192.png", type: "image/png" }],
+  },
 };
+
+export const viewport: Viewport = { themeColor: "#1e293b", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

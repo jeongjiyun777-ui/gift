@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import InstallApp from "./InstallApp";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
@@ -53,10 +55,12 @@ export default function Header() {
   return (
     <header className="relative z-20 border-b border-slate-700 bg-slate-800 text-white">
       <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-5">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          정정식 업무목록
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
+          <Image src="/icons/notebook.svg" alt="" width={36} height={36} className="rounded-lg" />
+          정정식 업무모음
         </Link>
         <nav aria-label="주 메뉴" className="flex flex-wrap gap-2">
+          <InstallApp />
           <div
             className="relative"
             onPointerEnter={(event) => {
