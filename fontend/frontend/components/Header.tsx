@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const giftLinks = [
-  { href: "/", label: "조회", icon: "gift" },
+  { href: "/", label: "받은 금액 조회", icon: "gift" },
+  { href: "/gifts/paid", label: "낸 금액 조회", icon: "gift" },
   { href: "/gifts/new", label: "입력", icon: "add" },
 ] as const;
 
@@ -104,7 +105,7 @@ export default function Header() {
               </svg>
             </button>
             {giftMenuOpen && (
-              <div id="gift-navigation" className="absolute right-0 top-full w-40 pt-2">
+              <div id="gift-navigation" className="absolute right-0 top-full w-52 pt-2">
                 <div className="rounded-xl bg-white p-2 text-slate-900 shadow-lg ring-1 ring-slate-200">
                   {giftLinks.map((link) => (
                     <Link
