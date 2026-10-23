@@ -25,7 +25,10 @@ export function sumDrivingCharges(records: DrivingRecord[]): string {
   }, BigInt(0)).toString();
 }
 
-export async function fetchDrivingRecords(year = "", month = "", signal?: AbortSignal): Promise<DrivingRecord[]> {
+export async function fetchDrivingRecords(year: string, month: string, signal?: AbortSignal): Promise<DrivingRecord[]> {
+  if (!/^\d{4}$/.test(year) || Number(year) < 1 || Number(year) > 9998 || !/^(0?[1-9]|1[0-2])$/.test(month)) {
+    throw new Error("조회할 연도와 월을 선택해 주세요.");
+  }
   const params = new URLSearchParams();
   if (year) params.set("year", year);
   if (year && month) params.set("month", month);
