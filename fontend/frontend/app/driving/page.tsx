@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 interface DrivingRecord {
@@ -37,18 +37,23 @@ function formatAmount(value: number | string | null) {
 
 export default function DrivingPage() {
   const [records, setRecords] = useState<DrivingRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
-  const [year, setYear] = useState("");
-  const [month, setMonth] = useState("");
+  const [period, setPeriod] = useState("");
   const [appliedPeriod, setAppliedPeriod] = useState("전체 기간");
-  const [years, setYears] = useState(["2026", "2027", "2028"]);
+  const activeRequest = useRef<AbortController | null>(null);
 
-  const loadDrivingRecords = useCallback(async (selectedYear = "", selectedMonth = "", signal?: AbortSignal) => {
+  const loadDrivingRecords = useCallback(async (selectedYear = "", selectedMonth = "") => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const { signal } = controller;
     setLoading(true);
+    setHasSearched(true);
     setError("");
     setCurrentPage(1);
     setDownloadError("");
@@ -72,21 +77,13 @@ export default function DrivingPage() {
     }
   }, []);
 
+  useEffect(() => () => activeRequest.current?.abort(), []);
+
   function handlePeriodSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const [year = "", month = ""] = period.split("-");
     if (!loading) void loadDrivingRecords(year, month);
   }
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void Promise.resolve().then(() => {
-      if (controller.signal.aborted) return;
-      const currentYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date()));
-      setYears(Array.from({ length: Math.max(2028, currentYear + 2) - 2026 + 1 }, (_, index) => String(2026 + index)));
-      void loadDrivingRecords("", "", controller.signal);
-    });
-    return () => controller.abort();
-  }, [loadDrivingRecords]);
 
   const totalPages = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
   const visibleRecords = useMemo(() => {
@@ -119,7 +116,6 @@ export default function DrivingPage() {
   }
 
   return (
-    <main className="flex-1 bg-slate-50 px-4 py-10 text-slate-900 sm:py-16">
       <section className="mx-auto w-full max-w-7xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -136,7 +132,7 @@ export default function DrivingPage() {
         </div>
         <div className="mt-7 flex items-center justify-between gap-3 text-sm text-slate-500">
           <h2 className="font-semibold text-slate-700">운행기록</h2>
-          {!loading && !error && <p>{appliedPeriod} · 총 {records.length}건</p>}
+          {hasSearched && !loading && !error && <p>{appliedPeriod} · 총 {records.length}건</p>}
         </div>
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         {downloadError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>}
@@ -160,7 +156,7 @@ export default function DrivingPage() {
               {loading || error || records.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="h-40 text-center text-slate-500" aria-live="polite">
-                    {loading ? "운행기록을 불러오는 중입니다..." : error ? "연결이 완료되면 이곳에 운행기록이 표시됩니다." : "조회한 기간에 등록된 운행기록이 없습니다."}
+                    {loading ? "운행기록을 불러오는 중입니다..." : error ? "기간을 선택하고 다시 조회해 주세요." : !hasSearched ? "아래에서 조회 월을 선택하고 조회하기를 눌러 주세요." : "조회한 기간에 등록된 운행기록이 없습니다."}
                   </td>
                 </tr>
               ) : visibleRecords.map((record) => (
@@ -185,20 +181,12 @@ export default function DrivingPage() {
         <p className="mt-2 text-right text-xs text-slate-500">금액 단위: 원 · 표를 좌우로 밀어 모든 항목을 확인할 수 있습니다.</p>
         <form onSubmit={handlePeriodSearch} className="mt-6 flex flex-wrap items-end justify-center gap-3 rounded-xl bg-slate-50 px-4 py-5">
           <div>
-            <label htmlFor="driving-year" className="mb-2 block text-sm font-semibold text-slate-700">연도</label>
-            <select id="driving-year" value={year} disabled={loading} onChange={(event) => { setYear(event.target.value); setMonth(""); }} className="min-w-32 rounded-lg border border-slate-300 bg-white px-4 py-3 disabled:opacity-50">
-              <option value="">전체 연도</option>
-              {years.map((value) => <option key={value} value={value}>{value}년</option>)}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="driving-month" className="mb-2 block text-sm font-semibold text-slate-700">월</label>
-            <select id="driving-month" value={month} disabled={!year || loading} onChange={(event) => setMonth(event.target.value)} className="min-w-32 rounded-lg border border-slate-300 bg-white px-4 py-3 disabled:bg-slate-100 disabled:text-slate-400">
-              <option value="">전체 월</option>
-              {Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={String(index + 1)}>{index + 1}월</option>)}
-            </select>
+            <label htmlFor="driving-period" className="mb-2 block text-sm font-semibold text-slate-700">조회 월</label>
+            <input id="driving-period" type="month" min="0001-01" max="9998-12" value={period} disabled={loading} onChange={(event) => setPeriod(event.target.value)} aria-describedby="driving-period-hint" className="min-w-48 rounded-lg border border-slate-300 bg-white px-4 py-3 disabled:opacity-50" />
           </div>
           <button type="submit" disabled={loading} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50">{loading ? "조회 중..." : "조회하기"}</button>
+          <button type="button" disabled={loading} onClick={() => { setPeriod(""); void loadDrivingRecords(); }} className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold hover:bg-slate-100 disabled:opacity-50">전체보기</button>
+          <p id="driving-period-hint" className="w-full text-center text-sm text-slate-500">월을 선택한 뒤 조회하세요. 비워두면 전체 기간을 조회합니다.</p>
         </form>
         {!loading && !error && records.length > 0 && (
           <nav aria-label="운행기록 페이지" className="mt-5 flex items-center justify-center gap-4">
@@ -208,6 +196,5 @@ export default function DrivingPage() {
           </nav>
         )}
       </section>
-    </main>
   );
 }
