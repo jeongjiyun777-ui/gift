@@ -17,8 +17,10 @@ export const metadata: Metadata = {
   title: "정정식 업무모음",
   description: "축의금과 운행기록을 관리하는 정정식 업무모음",
   applicationName: "정정식 업무모음",
+  appleWebApp: { capable: true, title: "정정식 업무모음", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icons/notebook.svg", type: "image/svg+xml" }, { url: "/icons/notebook-192.png", type: "image/png" }],
+    apple: [{ url: "/icons/notebook-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

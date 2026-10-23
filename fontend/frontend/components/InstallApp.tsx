@@ -7,16 +7,31 @@ interface InstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+function isAppleMobile() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function manualInstallHelp() {
+  return isAppleMobile()
+    ? "iPhone·iPad에서는 Safari의 공유 버튼(위로 향한 화살표) → ‘홈 화면에 추가’ → ‘추가’를 눌러 주세요. ‘웹 앱으로 열기’가 보이면 켜 주세요."
+    : "안드로이드 Chrome에서 오른쪽 위 ⋮ 메뉴 → ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해 주세요.";
+}
+
 export default function InstallApp() {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [appleMobile, setAppleMobile] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [help, setHelp] = useState("");
   const installLock = useRef(false);
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)");
-    const updateDisplay = () => setInstalled(standalone.matches);
+    const updateDisplay = () => {
+      setInstalled(standalone.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+      setAppleMobile(isAppleMobile());
+    };
     void Promise.resolve().then(updateDisplay);
     const beforeInstall = (event: Event) => {
       event.preventDefault();
@@ -41,8 +56,8 @@ export default function InstallApp() {
 
   const handleInstall = async () => {
     if (installLock.current) return;
-    if (!installPrompt) {
-      setHelp("안드로이드 Chrome에서 오른쪽 위 ⋮ 메뉴 → ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해 주세요.");
+    if (isAppleMobile() || !installPrompt) {
+      setHelp(manualInstallHelp());
       return;
     }
     installLock.current = true;
@@ -51,10 +66,10 @@ export default function InstallApp() {
       await installPrompt.prompt();
       const { outcome } = await installPrompt.userChoice;
       setInstallPrompt(null);
-      if (outcome === "dismissed") setHelp("나중에 Chrome 메뉴에서 다시 설치할 수 있습니다.");
+      if (outcome === "dismissed") setHelp(manualInstallHelp());
     } catch {
       setInstallPrompt(null);
-      setHelp("Chrome 오른쪽 위 ⋮ 메뉴에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해 주세요.");
+      setHelp(manualInstallHelp());
     } finally { installLock.current = false; setInstalling(false); }
   };
 
@@ -63,9 +78,9 @@ export default function InstallApp() {
     <div className="relative">
       <button type="button" onClick={handleInstall} disabled={installing} aria-describedby={help ? "app-install-help" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50">
         <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4" /></svg>
-        {installing ? "설치 확인 중..." : "앱 설치"}
+        {installing ? "설치 확인 중..." : appleMobile ? "설치 안내" : "앱 설치"}
       </button>
-      {help && <div id="app-install-help" role="status" className="absolute right-0 top-full z-30 mt-2 w-64 rounded-xl bg-white p-4 text-sm leading-relaxed text-slate-700 shadow-lg ring-1 ring-slate-200"><p>{help}</p><button type="button" onClick={() => setHelp("")} className="mt-3 rounded-lg bg-slate-100 px-3 py-2 font-semibold">닫기</button></div>}
+      {help && <div id="app-install-help" role="status" className="fixed inset-x-4 top-24 z-30 mt-2 rounded-xl bg-white p-4 text-base leading-relaxed text-slate-700 shadow-lg ring-1 ring-slate-200 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:w-80"><p>{help}</p><button type="button" onClick={() => setHelp("")} className="mt-3 rounded-lg bg-slate-100 px-4 py-2 font-semibold">닫기</button></div>}
     </div>
   );
 }
