@@ -76,7 +76,7 @@ export default function InstallApp() {
   if (installed) return null;
   return (
     <div className="relative">
-      <button type="button" onClick={handleInstall} disabled={installing} aria-describedby={help ? "app-install-help" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50">
+      <button type="button" onClick={handleInstall} disabled={installing} aria-describedby={help ? "app-install-help" : undefined} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50">
         <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4" /></svg>
         {installing ? "설치 확인 중..." : appleMobile ? "설치 안내" : "앱 설치"}
       </button>

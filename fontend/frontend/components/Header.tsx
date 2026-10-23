@@ -54,12 +54,12 @@ export default function Header() {
 
   return (
     <header className="relative z-20 border-b border-slate-700 bg-slate-800 text-white">
-      <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-5">
+      <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 py-5 sm:px-6">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
           <Image src="/icons/notebook.svg" alt="" width={36} height={36} className="rounded-lg" />
           정정식 업무모음
         </Link>
-        <nav aria-label="주 메뉴" className="flex flex-wrap gap-2">
+        <nav aria-label="주 메뉴" className="ml-auto flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
           <InstallApp />
           <div
             className="relative"
@@ -87,7 +87,7 @@ export default function Header() {
                   setGiftMenuOpen(true);
                 }
               }}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
                 isGiftPage ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
               }`}
             >
@@ -107,7 +107,7 @@ export default function Header() {
                       aria-label={`축의금 ${link.label}`}
                       aria-current={pathname === link.href ? "page" : undefined}
                       onClick={() => setGiftMenuOpen(false)}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
                         pathname === link.href ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
@@ -145,7 +145,7 @@ export default function Header() {
                   setDrivingMenuOpen(true);
                 }
               }}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
                 isDrivingPage ? "bg-white text-slate-900" : "text-slate-200 hover:bg-slate-700 hover:text-white"
               }`}
             >
@@ -165,7 +165,7 @@ export default function Header() {
                       aria-label={`운행기록 ${link.label}`}
                       aria-current={pathname === link.href ? "page" : undefined}
                       onClick={() => setDrivingMenuOpen(false)}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
                         pathname === link.href ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
