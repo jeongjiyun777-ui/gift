@@ -44,6 +44,7 @@ const routeOptions: DrivingRoute[] = [
 
 const shippers = [...new Set(routeOptions.map((route) => route.shipper))];
 const CONTAINER_SPEC = "40";
+const MANUAL_SHIPPER = "__manual__";
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
 
 export default function NewDrivingPage() {
@@ -51,10 +52,13 @@ export default function NewDrivingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [shipper, setShipper] = useState<string>("");
+  const [manualShipper, setManualShipper] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
+  const isManual = shipper === MANUAL_SHIPPER;
+  const shipperName = (isManual ? manualShipper : shipper).trim();
 
   const origins = [...new Set(routeOptions.filter((route) => route.shipper === shipper).map((route) => route.origin))];
   const destinations = [...new Set(routeOptions.filter((route) => route.shipper === shipper && route.origin === origin).map((route) => route.destination))];
@@ -62,8 +66,10 @@ export default function NewDrivingPage() {
 
   function handleShipperChange(value: string) {
     setShipper(value);
+    setManualShipper("");
     setOrigin("");
     setDestination("");
+    setError("");
   }
 
   function handleOriginChange(value: string) {
@@ -76,8 +82,8 @@ export default function NewDrivingPage() {
     if (saving) return;
     setError("");
     const amount = Number(chargeAmount);
-    if (!shipper || !origin || !destination || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
-      setError("화주와 구간을 선택하고, 컨테이너 번호와 청구가액을 확인해 주세요.");
+    if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
+      setError("화주와 구간을 입력하거나 선택하고, 컨테이너 번호와 청구가액을 확인해 주세요.");
       return;
     }
     setSaving(true);
@@ -86,9 +92,9 @@ export default function NewDrivingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shipper_name: shipper,
-          region_1: origin,
-          region_2: destination,
+          shipper_name: shipperName,
+          region_1: origin.trim(),
+          region_2: destination.trim(),
           container_spec: CONTAINER_SPEC,
           container_no: containerNo || null,
           charge_amount: amount,
@@ -106,36 +112,47 @@ export default function NewDrivingPage() {
   return (
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록 입력</h1>
-        <p className="mt-2 text-sm text-slate-500">화주를 선택한 뒤 출발지와 도착지를 차례로 선택해 주세요.</p>
+        <p className="mt-2 text-sm text-slate-500">화주와 구간을 선택하거나, 직접 입력으로 새로운 운행 내역을 등록해 주세요.</p>
         <form onSubmit={handleSubmit} className="mt-7">
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
-            <select id="driving-shipper" value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
+            <select id="driving-shipper" required value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
               <option value="">화주 선택</option>
               {shippers.map((value) => <option key={value} value={value}>{value}</option>)}
+              <option value={MANUAL_SHIPPER}>직접 입력</option>
             </select>
+            {isManual && (
+              <div className="mt-3">
+                <label htmlFor="driving-manual-shipper" className="mb-2 block text-sm font-semibold">화주명 직접 입력</label>
+                <input id="driving-manual-shipper" required type="text" value={manualShipper} onChange={(event) => setManualShipper(event.target.value)} placeholder="화주명을 입력해 주세요" className={fieldClass} />
+              </div>
+            )}
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="driving-origin" className="mb-2 block font-semibold">출발지</label>
-              <select id="driving-origin" value={origin} disabled={!shipper} onChange={(event) => handleOriginChange(event.target.value)} className={fieldClass}>
+              {isManual ? (
+                <input id="driving-origin" required type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="출발지를 입력해 주세요" className={fieldClass} />
+              ) : <select id="driving-origin" required value={origin} disabled={!shipper} onChange={(event) => handleOriginChange(event.target.value)} className={fieldClass}>
                 <option value="">{shipper ? "출발지 선택" : "화주를 먼저 선택해 주세요"}</option>
                 {origins.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
+              </select>}
             </div>
             <div>
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
-              <select id="driving-destination" value={destination} disabled={!origin} onChange={(event) => setDestination(event.target.value)} className={fieldClass}>
+              {isManual ? (
+                <input id="driving-destination" required type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder="도착지를 입력해 주세요" className={fieldClass} />
+              ) : <select id="driving-destination" required value={destination} disabled={!origin} onChange={(event) => setDestination(event.target.value)} className={fieldClass}>
                 <option value="">{origin ? "도착지 선택" : "출발지를 먼저 선택해 주세요"}</option>
                 {destinations.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
+              </select>}
             </div>
           </div>
-          <p className="text-sm text-slate-500">9월 명세서에서 확인한 주요 구간을 기준으로 한 선택지입니다.</p>
+          <p className="text-sm text-slate-500">{isManual ? "화주·출발지·도착지를 모두 직접 입력할 수 있습니다." : "9월 명세서에서 확인한 주요 구간을 기준으로 한 선택지입니다."}</p>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
-              {shipper} · {origin} → {destination}
+              {shipperName || "화주 입력 중"} · {origin} → {destination}
             </p>
           )}
           <div>
