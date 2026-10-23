@@ -161,22 +161,27 @@ def create_driving_record(record: DrivingRecordCreate):
     return dict(row)
 
 
-@app.get("/driving-records", summary="운행기록 조회")
+@app.get("/driving-records", summary="운행일자 기준 연도·월 조회")
 def get_driving_records(
-    year: int | None = Query(default=None, ge=1, le=9998),
-    month: int | None = Query(default=None, ge=1, le=12),
+    year: int | None = Query(default=None, ge=1, le=9998, description="운행 연도. 예: 2026. 생략하면 전체 기간"),
+    month: int | None = Query(default=None, ge=1, le=12, description="운행 월: 1~12. 연도만 보내면 해당 연도 전체"),
 ):
     if month is not None and year is None:
         raise HTTPException(status_code=422, detail="월을 조회하려면 연도도 선택하세요.")
-    params = {}
+    start_date: date | None = None
+    end_date: date | None = None
+    params: dict[str, date] = {}
     period_filter = ""
     if year is not None:
         start_month = month or 1
-        params["start_date"] = date(year, start_month, 1)
-        params["end_date"] = (
+        start_date = date(year, start_month, 1)
+        end_date = (
             date(year + 1, 1, 1) if month is None or month == 12
             else date(year, month + 1, 1)
         )
+        params = {"start_date": start_date, "end_date": end_date}
+        # operated_on은 한국 날짜 DATE, created_at은 저장 시각 TIMESTAMPTZ입니다.
+        # 다음 달 첫날 미만으로 조회해 말일과 윤년을 함께 처리합니다.
         period_filter = "WHERE operated_on >= :start_date AND operated_on < :end_date"
     query = text(f"""
         SELECT id, operated_on, category, shipper_name,
