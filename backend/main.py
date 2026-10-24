@@ -455,3 +455,64 @@ def export_urea_records(
         record.update(supply_amount=supply, vat_amount=vat)
         records.append(record)
     return records
+
+
+class UreaRecordUpdate(UreaRecordCreate):
+    purchased_on: date | None = None
+    merchant_name: str | None = Field(default=None, min_length=1)
+    unit_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
+    liters: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_changes(self):
+        changes = self.model_dump(exclude_unset=True)
+        if not changes:
+            raise ValueError("수정할 항목을 하나 이상 보내세요.")
+        for field in ("purchased_on", "merchant_name", "unit_price", "liters"):
+            if field in changes and changes[field] is None:
+                raise ValueError(f"{field} 항목은 비울 수 없습니다.")
+        return self
+
+
+@app.patch("/urea-records/{record_id}", response_model=UreaQueryResponse, summary="요소수 부분 수정")
+def update_urea_record(record_id: Annotated[int, Path(gt=0)], changes: UreaRecordUpdate):
+    values = changes.model_dump(exclude_unset=True)
+    with engine.begin() as conn:
+        lock = " FOR UPDATE" if conn.dialect.name == "postgresql" else ""
+        current = conn.execute(text("SELECT unit_price, liters FROM public.urea_records WHERE id=:id" + lock), {"id": record_id}).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="요소수 기록이 없습니다.")
+        if "unit_price" in values or "liters" in values:
+            unit_price = Decimal(str(values.get("unit_price", current["unit_price"])))
+            liters = Decimal(str(values.get("liters", current["liters"])))
+            total = (unit_price * liters).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if total > Decimal("999999999999.99"):
+                raise HTTPException(status_code=422, detail="총액이 저장 가능한 범위를 초과합니다.")
+            values["total_amount"] = total
+        assignments = ", ".join(f"{column} = :{column}" for column in values)
+        query = text(f"""
+            UPDATE public.urea_records SET {assignments} WHERE id=:record_id
+            RETURNING id, purchased_on, merchant_name, business_number, card_company,
+                      unit_price, liters, total_amount, created_at
+        """)
+        row = conn.execute(query, {**values, "record_id": record_id}).mappings().one()
+    record = dict(row)
+    supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
+    record.update(supply_amount=supply, vat_amount=vat)
+    return record
+
+
+class UreaRecordDelete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1)
+
+
+@app.post("/urea-records/delete", summary="선택한 요소수 기록 삭제")
+def delete_urea_records(selection: UreaRecordDelete):
+    ids = sorted(set(selection.ids))
+    query = text("DELETE FROM public.urea_records WHERE id IN :ids RETURNING id").bindparams(bindparam("ids", expanding=True))
+    with engine.begin() as conn:
+        deleted = conn.execute(query, {"ids": ids}).all()
+        if len(deleted) != len(ids):
+            raise HTTPException(status_code=409, detail="선택한 기록 중 없는 기록이 있습니다. 다시 조회해 주세요.")
+    return {"deleted_count": len(deleted)}

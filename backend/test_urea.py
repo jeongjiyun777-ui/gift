@@ -123,6 +123,55 @@ class UreaMonthlyQueryTests(unittest.TestCase):
             self.assertEqual(caught.exception.status_code,422)
 
 
+    def test_patch_recalculates_total_and_preserves_other_fields(self):
+        import sqlite3
+        sqlite3.register_adapter(Decimal,str)
+        result = main.update_urea_record(2, main.UreaRecordUpdate(liters="20"))
+        self.assertEqual(Decimal(str(result['total_amount'])),Decimal('30000'))
+        self.assertEqual(result['merchant_name'],'테스트')
+        self.assertEqual(result['created_at'],'2026-10-24T00:00:00Z')
+        self.assertEqual(result['supply_amount']+result['vat_amount'],Decimal('30000'))
+
+    def test_patch_date_moves_record_between_months(self):
+        main.update_urea_record(2, main.UreaRecordUpdate(purchased_on='2026-10-02'))
+        self.assertEqual([r['id'] for r in main.get_urea_records(2026,9)],[3])
+        self.assertEqual([r['id'] for r in main.get_urea_records(2026,10)],[4,2])
+
+    def test_patch_missing_record_and_invalid_fields(self):
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as caught:
+            main.update_urea_record(999,main.UreaRecordUpdate(merchant_name='변경'))
+        self.assertEqual(caught.exception.status_code,404)
+        for payload in [{},{'liters':0},{'unit_price':None},{'merchant_name':' '},
+                        {'purchased_on':None},{'total_amount':1},{'id':2},{'liters':'1.0001'}]:
+            with self.subTest(payload=payload),self.assertRaises(ValidationError):
+                main.UreaRecordUpdate(**payload)
+
+    def test_delete_deduplicates_ids_and_rolls_back_missing(self):
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as caught:
+            main.delete_urea_records(main.UreaRecordDelete(ids=[2,999]))
+        self.assertEqual(caught.exception.status_code,409)
+        self.assertEqual(len(main.get_urea_records(2026,9)),2)
+        self.assertEqual(main.delete_urea_records(main.UreaRecordDelete(ids=[2,2])),{'deleted_count':1})
+        self.assertEqual([r['id'] for r in main.get_urea_records(2026,9)],[3])
+        for ids in [[],[0],[-1],[True],['2']]:
+            with self.subTest(ids=ids),self.assertRaises(ValidationError):
+                main.UreaRecordDelete(ids=ids)
+
+    def test_patch_overflow_rolls_back(self):
+        import sqlite3
+        from fastapi import HTTPException
+        from sqlalchemy import text
+        sqlite3.register_adapter(Decimal,str)
+        main.update_urea_record(2,main.UreaRecordUpdate(unit_price='9999999999.99'))
+        with self.assertRaises(HTTPException) as caught:
+            main.update_urea_record(2,main.UreaRecordUpdate(liters='999999999.999'))
+        self.assertEqual(caught.exception.status_code,422)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text('SELECT liters FROM public.urea_records WHERE id=2')).scalar_one(),10)
+
+
 class UreaVatTests(unittest.TestCase):
     def test_tax_inclusive_total_is_split_and_reconciles(self):
         for total, expected_supply, expected_vat in [
