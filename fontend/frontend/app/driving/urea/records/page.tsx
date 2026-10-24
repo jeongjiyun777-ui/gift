@@ -29,13 +29,20 @@ export default function UreaRecordsPage() {
   const [records, setRecords] = useState<UreaRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+  const exportRef = useRef<AbortController | null>(null);
   const requestRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => () => {
+    requestRef.current?.abort();
+    exportRef.current?.abort();
+  }, []);
 
   function handlePeriodChange(value: string) {
     requestRef.current?.abort();
     requestRef.current = null;
+    setDownloadError("");
     setPeriod(value);
     setAppliedPeriod("");
     setRecords([]);
@@ -77,6 +84,52 @@ export default function UreaRecordsPage() {
     }
   }
 
+  async function handleExcelDownload() {
+    if (exportRef.current || loading) return;
+    const params = new URLSearchParams();
+    if (period) {
+      const [year, month] = period.split("-").map(Number);
+      if (!/^\d{4}-\d{2}$/.test(period) || year < 1 || year > 9998 || month < 1 || month > 12) {
+        setDownloadError("올바른 연도와 월을 선택해 주세요.");
+        return;
+      }
+      params.set("year", String(year));
+      params.set("month", String(month));
+    }
+    const controller = new AbortController();
+    exportRef.current = controller;
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const query = params.size ? `?${params}` : "";
+      const response = await fetch(`${API_URL}/urea-records/export${query}`, {
+        cache: "no-store", signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("조회 실패");
+      const exportRecords: UreaRecord[] = await response.json();
+      if (controller.signal.aborted) return;
+      const { createUreaWorkbook } = await import("@/lib/ureaExcel");
+      const buffer = await createUreaWorkbook(exportRecords);
+      if (controller.signal.aborted) return;
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `요소수_${period || "전체기간"}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      if (!controller.signal.aborted) setDownloadError("엑셀 파일을 만들지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      if (exportRef.current === controller && !controller.signal.aborted) {
+        exportRef.current = null;
+        setDownloading(false);
+      }
+    }
+  }
+
   const emptyMessage = loading ? "조회 중..." : error ? error
     : !appliedPeriod ? "날짜를 선택한 뒤 그 달 조회하기를 눌러 주세요."
     : "선택한 달의 요소수 구매 기록이 없습니다.";
@@ -85,10 +138,21 @@ export default function UreaRecordsPage() {
     <section className="mx-auto flex w-full min-w-0 max-w-3xl flex-col rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">요소수 조회</h1>
       <p className="mt-2 text-sm text-slate-500">조회할 연도와 월을 선택해 구매 내역을 확인해 보세요.</p>
+      <div className="mt-5 flex flex-wrap justify-end gap-3">
+        <button type="button" disabled={loading || downloading} onClick={handleExcelDownload} className="inline-flex items-center gap-2 rounded-lg bg-[#107C41] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0B5C30] disabled:cursor-not-allowed disabled:opacity-50">
+          <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 3h6v18h-6M14 7h6M14 12h6M14 17h6M17 3v18" />
+            <path d="m3 5 11-2v18L3 19V5ZM6 9l5 6M11 9l-5 6" />
+          </svg>
+          {downloading ? "파일 만드는 중..." : period ? "그 달 엑셀로 저장하기" : "전체 엑셀로 저장하기"}
+        </button>
+      </div>
+      <p className="mt-3 text-right text-sm text-slate-500">엑셀 저장 기간: {period ? `${period.replace("-", "년 ")}월` : "전체 기간"}</p>
+      {downloadError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>}
       <form onSubmit={handleSearch} className="mt-7" aria-busy={loading}>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <label htmlFor="urea-period" className="font-semibold">날짜 선택</label>
-          <input id="urea-period" type="month" required min="0001-01" max="9998-12" value={period}
+          <input id="urea-period" type="month" disabled={downloading} required min="0001-01" max="9998-12" value={period}
             onChange={(event) => handlePeriodChange(event.target.value)}
             className="max-w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
@@ -124,7 +188,7 @@ export default function UreaRecordsPage() {
           <p aria-live="polite" className="text-sm text-slate-500">
             {appliedPeriod ? `${appliedPeriod.replace("-", "년 ")}월 · 총 ${records.length}건` : "월을 선택해 주세요."}
           </p>
-          <button type="submit" disabled={!period || loading} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={!period || loading || downloading} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? "조회 중..." : "그 달 조회하기"}
           </button>
         </div>

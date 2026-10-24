@@ -344,7 +344,6 @@ class UreaRecordCreate(BaseModel):
     card_company: str | None = None
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
     liters: Decimal = Field(gt=0, max_digits=12, decimal_places=3, allow_inf_nan=False)
-    total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
 
     @field_validator("business_number", "card_company", mode="before")
     @classmethod
@@ -365,6 +364,7 @@ class UreaRecordCreate(BaseModel):
 
 
 class UreaRecordResponse(UreaRecordCreate):
+    total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
     id: int
     purchased_on: date
     created_at: datetime
@@ -372,6 +372,10 @@ class UreaRecordResponse(UreaRecordCreate):
 
 @app.post("/urea-records", status_code=201, response_model=UreaRecordResponse, summary="요소수 저장")
 def create_urea_record(record: UreaRecordCreate):
+    total = (record.unit_price * record.liters).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if total > Decimal("999999999999.99"):
+        raise HTTPException(status_code=422, detail="단가와 리터를 곱한 총액이 저장 가능한 범위를 초과합니다.")
+    values = {**record.model_dump(), "total_amount": total}
     query = text("""
         INSERT INTO public.urea_records (
             purchased_on, merchant_name, business_number, card_company,
@@ -385,7 +389,7 @@ def create_urea_record(record: UreaRecordCreate):
                   unit_price, liters, total_amount, created_at
     """)
     with engine.begin() as conn:
-        row = conn.execute(query, record.model_dump()).mappings().one()
+        row = conn.execute(query, values).mappings().one()
     return dict(row)
 
 
@@ -418,6 +422,32 @@ def get_urea_records(
     """)
     with engine.connect() as conn:
         rows = conn.execute(query, {"start_date": start_date, "end_date": end_date}).mappings().all()
+    records = []
+    for row in rows:
+        record = dict(row)
+        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
+        record.update(supply_amount=supply, vat_amount=vat)
+        records.append(record)
+    return records
+
+
+@app.get("/urea-records/export", response_model=list[UreaQueryResponse], summary="요소수 엑셀용 월별·전체 데이터")
+def export_urea_records(
+    year: Annotated[int | None, Query(ge=1, le=9998)] = None,
+    month: Annotated[int | None, Query(ge=1, le=12)] = None,
+):
+    if (year is None) != (month is None):
+        raise HTTPException(status_code=422, detail="연도와 월을 함께 선택하세요.")
+    if year is not None and month is not None:
+        return get_urea_records(year, month)
+    query = text("""
+        SELECT id, purchased_on, merchant_name, business_number, card_company,
+               unit_price, liters, total_amount, created_at
+        FROM public.urea_records
+        ORDER BY purchased_on, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
     records = []
     for row in rows:
         record = dict(row)

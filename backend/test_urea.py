@@ -12,12 +12,11 @@ with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
 class UreaTests(unittest.TestCase):
     def payload(self, **changes):
         return dict(merchant_name="  테스트 주유소  ", business_number=" 012-34-56789 ",
-                    card_company=" 카드사 ", unit_price="1500.25", liters="10.125",
-                    total_amount="15190.03", **changes)
+                    card_company=" 카드사 ", unit_price="1500.25", liters="10.125", **changes)
 
     def test_insert_uses_transaction_and_maps_all_columns(self):
         record = main.UreaRecordCreate(**self.payload(purchased_on="2026-10-24"))
-        expected = dict(record.model_dump(), id=1, created_at=datetime.now(timezone.utc))
+        expected = dict(record.model_dump(), total_amount=Decimal("15190.03"), id=1, created_at=datetime.now(timezone.utc))
         engine = MagicMock()
         conn = engine.begin.return_value.__enter__.return_value
         conn.execute.return_value.mappings.return_value.one.return_value = expected
@@ -28,6 +27,7 @@ class UreaTests(unittest.TestCase):
         self.assertEqual(params["merchant_name"], "테스트 주유소")
         self.assertEqual(params["business_number"], "012-34-56789")
         self.assertEqual(params["liters"], Decimal("10.125"))
+        self.assertEqual(params["total_amount"], Decimal("15190.03"))
         self.assertEqual(params["purchased_on"], date(2026, 10, 24))
         self.assertEqual(result, expected)
         self.assertEqual(main.UreaRecordResponse(**result).total_amount, Decimal("15190.03"))
@@ -107,6 +107,22 @@ class UreaMonthlyQueryTests(unittest.TestCase):
             self.assertEqual(by_name[field]['schema']['maximum'],maximum)
 
 
+    def test_export_all_periods_and_selected_month(self):
+        all_rows = main.export_urea_records(None, None)
+        self.assertEqual(len(all_rows), 7)
+        self.assertEqual([r['id'] for r in main.export_urea_records(2026,9)], [2,3])
+        self.assertTrue(all('supply_amount' in row and 'vat_amount' in row for row in all_rows))
+        for row in all_rows:
+            self.assertEqual(row['supply_amount'] + row['vat_amount'], Decimal(str(row['total_amount'])))
+
+    def test_export_rejects_incomplete_period(self):
+        from fastapi import HTTPException
+        for year, month in [(2026,None),(None,9)]:
+            with self.assertRaises(HTTPException) as caught:
+                main.export_urea_records(year,month)
+            self.assertEqual(caught.exception.status_code,422)
+
+
 class UreaVatTests(unittest.TestCase):
     def test_tax_inclusive_total_is_split_and_reconciles(self):
         for total, expected_supply, expected_vat in [
@@ -135,3 +151,28 @@ class UreaVatTests(unittest.TestCase):
         self.assertEqual(response.vat_amount,Decimal('1000'))
         engine.begin.assert_not_called()
         self.assertEqual(conn.execute.call_count,1)
+
+
+class UreaCalculatedTotalTests(unittest.TestCase):
+    def test_post_accepts_inputs_without_total_and_rejects_client_total(self):
+        record = main.UreaRecordCreate(merchant_name='테스트', unit_price='1500', liters='10')
+        self.assertNotIn('total_amount', record.model_dump())
+        with self.assertRaises(ValidationError):
+            main.UreaRecordCreate(merchant_name='테스트',unit_price='1500',liters='10',total_amount=1)
+
+    def test_total_overflow_is_rejected_before_insert(self):
+        record = main.UreaRecordCreate(merchant_name='테스트',unit_price='9999999999.99',liters='999999999.999')
+        engine = MagicMock()
+        from fastapi import HTTPException
+        with patch.object(main,'engine',engine), self.assertRaises(HTTPException) as caught:
+            main.create_urea_record(record)
+        self.assertEqual(caught.exception.status_code,422)
+        engine.begin.assert_not_called()
+
+    def test_rounding_uses_decimal_and_half_up(self):
+        record = main.UreaRecordCreate(merchant_name='테스트',unit_price='1.01',liters='0.5')
+        engine = MagicMock()
+        with patch.object(main,'engine',engine):
+            main.create_urea_record(record)
+        params = engine.begin.return_value.__enter__.return_value.execute.call_args.args[1]
+        self.assertEqual(params['total_amount'],Decimal('0.51'))

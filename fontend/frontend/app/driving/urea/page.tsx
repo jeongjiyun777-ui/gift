@@ -14,17 +14,17 @@ interface UreaForm {
   card_company: string;
   unit_price: string;
   liters: string;
-  total_amount: string;
 }
 
 interface UreaRecord extends UreaForm {
+  total_amount: string;
   id: number;
   created_at: string;
 }
 
 const EMPTY_FORM: Omit<UreaForm, "business_number"> = {
   purchased_on: "", merchant_name: "", card_company: "",
-  unit_price: "", liters: "", total_amount: "",
+  unit_price: "", liters: "",
 };
 
 export default function UreaPage() {
@@ -67,16 +67,14 @@ export default function UreaPage() {
       card_company: form.card_company.trim(),
       unit_price: form.unit_price.trim(),
       liters: form.liters.trim(),
-      total_amount: form.total_amount.trim(),
     };
     if (!/^\d{3}-\d{2}-\d{5}$/.test(payload.business_number)) {
       setError("사업자번호는 숫자 10자리 또는 000-00-00000 형식으로 입력해 주세요.");
       return;
     }
     if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(payload.unit_price) ||
-        !/^\d{1,9}(?:\.\d{1,3})?$/.test(payload.liters) || Number(payload.liters) <= 0 ||
-        !/^\d{1,12}(?:\.\d{1,2})?$/.test(payload.total_amount)) {
-      setError("단가·총액은 소수 둘째 자리, 리터는 소수 셋째 자리까지 입력해 주세요. 리터는 0보다 커야 합니다.");
+        !/^\d{1,9}(?:\.\d{1,3})?$/.test(payload.liters) || Number(payload.liters) <= 0) {
+      setError("단가는 소수 둘째 자리, 리터는 소수 셋째 자리까지 입력해 주세요. 리터는 0보다 커야 합니다.");
       return;
     }
     savingRef.current = true;
@@ -89,7 +87,7 @@ export default function UreaPage() {
       });
       if (!response.ok) {
         if (response.status === 422) {
-          setError("입력 형식과 금액 범위를 확인해 주세요.");
+          setError("입력 형식과 단가 × 리터의 금액 범위를 확인해 주세요.");
           return;
         }
         throw new Error("저장 실패");
@@ -168,10 +166,7 @@ export default function UreaPage() {
               <input id="urea-liters" type="number" inputMode="decimal" required min="0.001" max="999999999.999" step="0.001" value={form.liters} onChange={(event) => updateField("liters", event.target.value)} placeholder="예: 10" className={INPUT_CLASS} />
             </div>
           </div>
-          <div>
-            <label htmlFor="urea-total" className="mb-2 block font-semibold">총액 (원)</label>
-            <input id="urea-total" type="number" inputMode="decimal" required min="0" max="999999999999.99" step="0.01" value={form.total_amount} onChange={(event) => updateField("total_amount", event.target.value)} placeholder="영수증 총액 입력" className={INPUT_CLASS} />
-          </div>
+          <p className="text-sm text-slate-500">총액은 단가 × 리터로 자동 계산하여 저장합니다.</p>
           <div className="flex justify-end pt-2">
             <button type="submit" disabled={saving || !complete} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? "저장 중..." : "저장하기"}
@@ -179,7 +174,7 @@ export default function UreaPage() {
           </div>
         </fieldset>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-        {savedRecord && <p role="status" className="rounded-lg bg-green-50 p-4 text-green-800">{savedRecord.merchant_name}의 요소수 구매 기록을 저장했습니다. (번호 {savedRecord.id})</p>}
+        {savedRecord && <p role="status" className="rounded-lg bg-green-50 p-4 text-green-800">{savedRecord.merchant_name}의 요소수 구매 기록을 저장했습니다. 총액 {Number(savedRecord.total_amount).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}원 (번호 {savedRecord.id})</p>}
       </form>
     </section>
   );
