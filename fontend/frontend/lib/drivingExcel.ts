@@ -27,7 +27,7 @@ export async function createDrivingWorkbook(records: DrivingExcelRecord[]) {
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
   const sheet = workbook.addWorksheet("운행기록");
-  sheet.addRow(["번호", "일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "청구가액", "세액", "합계금액", "비고"]);
+  sheet.addRow(["번호", "일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"]);
   for (const record of records) {
     sheet.addRow([
       String(record.id), record.operated_on, record.category, record.shipper_name,

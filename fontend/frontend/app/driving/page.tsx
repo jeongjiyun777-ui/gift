@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
 import { DRIVING_API_URL as API_URL, fetchDrivingRecords, fetchDrivingReport, type DrivingRecord, type DrivingTotals } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "청구가액", "세액", "합계금액", "비고"];
+const columns = ["일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
@@ -257,7 +257,7 @@ export default function DrivingPage() {
           <div aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
             <p className="text-base font-medium text-slate-600">{appliedPeriod} · 조회한 전체 기록 합계</p>
             <dl className="mt-4 space-y-4">
-              <div><dt className="text-base font-medium text-slate-600">청구가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatAmount(totals.charge_amount)}원</dd></div>
+              <div><dt className="text-base font-medium text-slate-600">공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatAmount(totals.charge_amount)}원</dd></div>
               <div><dt className="text-base font-medium text-slate-600">세액 합계 (10%)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatAmount(totals.tax_amount)}원</dd></div>
               <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">합계금액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatAmount(totals.total_amount)}원</dd></div>
             </dl>

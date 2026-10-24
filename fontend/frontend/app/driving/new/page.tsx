@@ -43,7 +43,7 @@ export default function NewDrivingPage() {
     }
     const amount = Number(chargeAmount);
     if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
-      setError("화주를 선택하고 출발지·도착지, 컨테이너 번호와 청구가액을 확인해 주세요.");
+      setError("화주를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
       return;
     }
     setSaving(true);
@@ -129,7 +129,7 @@ export default function NewDrivingPage() {
               <input id="driving-spec" type="text" value={CONTAINER_SPEC} readOnly className={`${fieldClass} bg-slate-100 text-slate-500`} />
             </div>
             <div>
-              <label htmlFor="driving-charge" className="mb-2 block font-semibold">청구가액 (원)</label>
+              <label htmlFor="driving-charge" className="mb-2 block font-semibold">공급가액 (원)</label>
               <input
                 id="driving-charge"
                 type="number"

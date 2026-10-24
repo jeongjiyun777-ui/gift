@@ -15,7 +15,7 @@ const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "shipping_line", label: "라인" },
   { key: "container_spec", label: "규격" },
   { key: "container_no", label: "CNTR" },
-  { key: "charge_amount", label: "청구가액 (원)", type: "number" },
+  { key: "charge_amount", label: "공급가액 (원)", type: "number" },
   { key: "tax_amount", label: "세액 (원)", type: "number" },
   { key: "memo", label: "비고" },
   { key: "vehicle_number", label: "차량번호" },
