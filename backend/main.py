@@ -301,6 +301,13 @@ def create_driving_record(record: DrivingRecordCreate):
     return dict(row)
 
 
+def driving_amounts(record: dict) -> dict:
+    # 입력값과 DB 저장값은 유지하고 조회용 세액·합계금액만 계산합니다.
+    charge = int(record["charge_amount"])
+    tax = int((Decimal(charge) * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return {**record, "calculated_tax_amount": str(tax), "total_amount": str(charge + tax)}
+
+
 @app.get("/driving-records", summary="운행일자 기준 연도·월 조회")
 def get_driving_records(
     year: int | None = Query(default=None, ge=1, le=9998, description="운행 연도. 예: 2026. 생략하면 전체 기간"),
@@ -333,7 +340,21 @@ def get_driving_records(
     with engine.connect() as conn:
         rows = conn.execute(query, params).mappings().all()
 
-    return [dict(row) for row in rows]
+    return [driving_amounts(dict(row)) for row in rows]
+
+
+@app.get("/driving-records/report", summary="운행기록 월별 조회 및 청구가액·세액·합계")
+def get_driving_report(
+    year: Annotated[int, Query(ge=1, le=9998)],
+    month: Annotated[int, Query(ge=1, le=12)],
+):
+    records = get_driving_records(year, month)
+    # 표의 각 행과 월 합계가 일치하도록 행별 원 단위 반올림 후 합산합니다.
+    charge = sum(int(row["charge_amount"]) for row in records)
+    tax = sum(int(row["calculated_tax_amount"]) for row in records)
+    return {"records": records, "totals": {
+        "charge_amount": str(charge), "tax_amount": str(tax), "total_amount": str(charge + tax),
+    }}
 
 
 class UreaRecordCreate(BaseModel):

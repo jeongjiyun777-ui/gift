@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
-import { DRIVING_API_URL as API_URL, fetchDrivingRecords, sumDrivingCharges, type DrivingRecord } from "../../lib/drivingRecords";
+import { DRIVING_API_URL as API_URL, fetchDrivingRecords, fetchDrivingReport, type DrivingRecord, type DrivingTotals } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "청구가액", "세액", "비고"];
+const columns = ["일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "청구가액", "세액", "합계금액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
@@ -13,13 +13,15 @@ function displayText(value: string | null) {
 
 function formatAmount(value: number | string | null) {
   if (value === null || value === "") return "—";
-  const amount = Number(typeof value === "string" ? value.replaceAll(",", "") : value);
+  const raw = String(value).replaceAll(",", "").trim();
+  if (/^-?\d+$/.test(raw)) return BigInt(raw).toLocaleString("ko-KR");
+  const amount = Number(raw);
   return Number.isFinite(amount) ? amount.toLocaleString("ko-KR") : "—";
 }
 
 export default function DrivingPage() {
   const [records, setRecords] = useState<DrivingRecord[]>([]);
-  const [totalChargeAmount, setTotalChargeAmount] = useState("0");
+  const [totals, setTotals] = useState<DrivingTotals>({ charge_amount: "0", tax_amount: "0", total_amount: "0" });
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState("");
@@ -53,17 +55,16 @@ export default function DrivingPage() {
     setSelectedIds([]);
     setEditing(null);
     try {
-      const data = await fetchDrivingRecords(selectedYear, selectedMonth, signal);
+      const report = await fetchDrivingReport(selectedYear, selectedMonth, signal);
       if (signal?.aborted) return;
-      const total = sumDrivingCharges(data);
-      setRecords(data);
-      setTotalChargeAmount(total);
+      setRecords(report.records);
+      setTotals(report.totals);
       appliedQuery.current = { year: selectedYear, month: selectedMonth };
       setAppliedPeriod(`${selectedYear}년 ${Number(selectedMonth)}월`);
     } catch {
       if (signal?.aborted) return;
       setRecords([]);
-      setTotalChargeAmount("0");
+      setTotals({ charge_amount: "0", tax_amount: "0", total_amount: "0" });
       setError("운행기록을 불러오지 못했습니다. 잠시 후 다시 조회해 주세요.");
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -82,7 +83,7 @@ export default function DrivingPage() {
     setYear(selectedYear);
     setMonth(selectedMonth);
     setRecords([]);
-    setTotalChargeAmount("0");
+    setTotals({ charge_amount: "0", tax_amount: "0", total_amount: "0" });
     setHasSearched(false);
     setAppliedPeriod("");
     setCurrentPage(1);
@@ -210,7 +211,7 @@ export default function DrivingPage() {
         </div>
         {editing && <DrivingRecordEditor key={String(editing.id)} record={editing} onClose={handleEditClose} onSaved={handleEditSaved} />}
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[1240px] border-collapse text-sm">
+          <table className="w-full min-w-[1420px] border-collapse text-sm">
             <caption className="sr-only">운행기록 거래명세서. 금액 단위는 원입니다.</caption>
             <thead className="bg-slate-100 text-slate-700">
               <tr>
@@ -244,7 +245,8 @@ export default function DrivingPage() {
                   <td className="text-center">{displayText(record.container_spec)}</td>
                   <td className="whitespace-nowrap font-mono">{displayText(record.container_no)}</td>
                   <td className="text-center tabular-nums">{formatAmount(record.charge_amount)}</td>
-                  <td className="text-center tabular-nums">{formatAmount(record.tax_amount)}</td>
+                  <td className="text-center tabular-nums">{formatAmount(record.calculated_tax_amount)}</td>
+                  <td className="text-center tabular-nums">{formatAmount(record.total_amount)}</td>
                   <td className="max-w-64 whitespace-pre-wrap break-words">{displayText(record.memo)}</td>
                 </tr>
               ))}
@@ -253,9 +255,12 @@ export default function DrivingPage() {
         </div>
         {hasSearched && !loading && !error && (
           <div aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
-            <p className="text-base font-medium text-slate-600">{appliedPeriod} · 청구가액 합계</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{BigInt(totalChargeAmount).toLocaleString("ko-KR")}원</p>
-            <p className="mt-1 text-sm text-slate-500">조회한 전체 기록 기준 · 세액 제외</p>
+            <p className="text-base font-medium text-slate-600">{appliedPeriod} · 조회한 전체 기록 합계</p>
+            <dl className="mt-4 space-y-4">
+              <div><dt className="text-base font-medium text-slate-600">청구가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatAmount(totals.charge_amount)}원</dd></div>
+              <div><dt className="text-base font-medium text-slate-600">세액 합계 (10%)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatAmount(totals.tax_amount)}원</dd></div>
+              <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">합계금액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatAmount(totals.total_amount)}원</dd></div>
+            </dl>
           </div>
         )}
         <p className="mt-2 text-right text-xs text-slate-500">금액 단위: 원 · 표를 좌우로 밀어 모든 항목을 확인할 수 있습니다.</p>

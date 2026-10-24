@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { DRIVING_API_URL, isValidKm, type DrivingRecord } from "../lib/drivingRecords";
 
-type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at">;
+type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at" | "calculated_tax_amount" | "total_amount">;
 const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "operated_on", label: "일자", type: "date" },
   { key: "category", label: "구분" },

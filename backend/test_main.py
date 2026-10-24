@@ -158,5 +158,37 @@ class DrivingRecordTests(unittest.TestCase):
         self.assertIn("post", paths["/driving-records/delete"])
 
 
+    def test_driving_get_calculates_tax_and_total_without_mutating_db(self):
+        rows = main.get_driving_records(2026, 9)
+        self.assertEqual(rows[0]["calculated_tax_amount"], "35730")
+        self.assertEqual(rows[0]["total_amount"], "393030")
+        self.assertIsNone(rows[0]["tax_amount"])
+        with self.engine.connect() as conn:
+            original = conn.execute(text("SELECT charge_amount,tax_amount FROM public.driving_records WHERE id=1")).one()
+        self.assertEqual(tuple(original), (357300, None))
+
+    def test_driving_report_matches_month_records_and_empty_month(self):
+        report = main.get_driving_report(2026,9)
+        self.assertEqual([r["id"] for r in report["records"]], [1])
+        self.assertEqual(report["totals"], {"charge_amount":"357300","tax_amount":"35730","total_amount":"393030"})
+        empty = main.get_driving_report(2026,8)
+        self.assertEqual(empty["records"], [])
+        self.assertEqual(empty["totals"], {"charge_amount":"0","tax_amount":"0","total_amount":"0"})
+
+    def test_driving_rounding_and_large_amounts(self):
+        for charge, tax in [(0,0),(4,0),(5,1),(15,2),(9007199254740991,900719925474099)]:
+            with self.subTest(charge=charge):
+                row = main.driving_amounts({"charge_amount":charge,"tax_amount":None})
+                self.assertEqual(row["calculated_tax_amount"],str(tax))
+                self.assertEqual(int(row["total_amount"]),charge+tax)
+        with patch.object(main,"get_driving_records",return_value=[main.driving_amounts({"charge_amount":5}),main.driving_amounts({"charge_amount":5})]):
+            report=main.get_driving_report(2026,9)
+        self.assertEqual(report["totals"],{"charge_amount":"10","tax_amount":"2","total_amount":"12"})
+
+    def test_driving_report_requires_year_and_month(self):
+        route = main.app.openapi()["paths"]["/driving-records/report"]["get"]
+        self.assertTrue(all(p["required"] for p in route["parameters"] if p["name"] in ("year","month")))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
