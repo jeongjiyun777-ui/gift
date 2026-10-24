@@ -14,10 +14,10 @@ const giftLinks = [
 ] as const;
 
 const drivingLinks = [
-  { href: "/driving", label: "조회", icon: "car" },
-  { href: "/driving/new", label: "입력", icon: "car" },
-  { href: "/driving/urea", label: "요소수 입력", icon: "drop" },
+  { href: "/driving", label: "운행 조회", icon: "car" },
   { href: "/driving/urea/records", label: "요소수 조회", icon: "drop" },
+  { href: "/driving/new", label: "운행 입력", icon: "car" },
+  { href: "/driving/urea", label: "요소수 입력", icon: "drop" },
 ] as const;
 
 function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" }) {
@@ -171,7 +171,7 @@ export default function Header() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      aria-label={`운행 ${link.label}`}
+                      aria-label={link.label}
                       aria-current={pathname === link.href ? "page" : undefined}
                       onClick={() => setDrivingMenuOpen(false)}
                       className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
