@@ -16,7 +16,8 @@ const giftLinks = [
 const drivingLinks = [
   { href: "/driving", label: "조회", icon: "car" },
   { href: "/driving/new", label: "입력", icon: "car" },
-  { href: "/driving/urea", label: "요소수", icon: "drop" },
+  { href: "/driving/urea", label: "요소수 입력", icon: "drop" },
+  { href: "/driving/urea/records", label: "요소수 조회", icon: "drop" },
 ] as const;
 
 function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" }) {

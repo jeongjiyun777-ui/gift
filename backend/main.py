@@ -1,6 +1,7 @@
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
+from decimal import Decimal, ROUND_HALF_UP
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Path, Query
@@ -332,3 +333,95 @@ def get_driving_records(
         rows = conn.execute(query, params).mappings().all()
 
     return [dict(row) for row in rows]
+
+
+class UreaRecordCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    purchased_on: date | None = Field(default=None, description="구매 날짜. 생략하면 한국 기준 오늘")
+    merchant_name: str = Field(min_length=1, description="상호명/대표자")
+    business_number: str | None = None
+    card_company: str | None = None
+    unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
+    liters: Decimal = Field(gt=0, max_digits=12, decimal_places=3, allow_inf_nan=False)
+    total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
+
+    @field_validator("business_number", "card_company", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return None if value in ("", "-") else value
+        return value
+
+    @field_validator("purchased_on", mode="before")
+    @classmethod
+    def normalize_date(cls, value):
+        if isinstance(value, str):
+            return value.strip() or None
+        if value is not None and not isinstance(value, date):
+            raise ValueError("날짜는 YYYY-MM-DD 형식으로 입력하세요.")
+        return value
+
+
+class UreaRecordResponse(UreaRecordCreate):
+    id: int
+    purchased_on: date
+    created_at: datetime
+
+
+@app.post("/urea-records", status_code=201, response_model=UreaRecordResponse, summary="요소수 저장")
+def create_urea_record(record: UreaRecordCreate):
+    query = text("""
+        INSERT INTO public.urea_records (
+            purchased_on, merchant_name, business_number, card_company,
+            unit_price, liters, total_amount
+        ) VALUES (
+            COALESCE(:purchased_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
+            :merchant_name, :business_number, :card_company,
+            :unit_price, :liters, :total_amount
+        )
+        RETURNING id, purchased_on, merchant_name, business_number, card_company,
+                  unit_price, liters, total_amount, created_at
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(query, record.model_dump()).mappings().one()
+    return dict(row)
+
+
+class UreaQueryResponse(UreaRecordResponse):
+    supply_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    vat_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+
+
+def split_urea_total(total: Decimal) -> tuple[Decimal, Decimal]:
+    # 총액에 부가세 10%가 포함된 것으로 계산합니다.
+    # 원 단위 영수증은 원 단위로, 소수가 있는 총액은 소수 둘째 자리까지 유지합니다.
+    quantum = Decimal("1") if total == total.to_integral_value() else Decimal("0.01")
+    supply = (total / Decimal("1.1")).quantize(quantum, rounding=ROUND_HALF_UP)
+    return supply, total - supply
+
+
+@app.get("/urea-records", response_model=list[UreaQueryResponse], summary="요소수 구매 연도·월 조회")
+def get_urea_records(
+    year: Annotated[int, Query(ge=1, le=9998, description="구매 연도")],
+    month: Annotated[int, Query(ge=1, le=12, description="구매 월: 1~12")],
+):
+    start_date = date(year, month, 1)
+    end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    query = text("""
+        SELECT id, purchased_on, merchant_name, business_number, card_company,
+               unit_price, liters, total_amount, created_at
+        FROM public.urea_records
+        WHERE purchased_on >= :start_date AND purchased_on < :end_date
+        ORDER BY purchased_on, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"start_date": start_date, "end_date": end_date}).mappings().all()
+    records = []
+    for row in rows:
+        record = dict(row)
+        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
+        record.update(supply_amount=supply, vat_amount=vat)
+        records.append(record)
+    return records
