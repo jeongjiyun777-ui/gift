@@ -617,6 +617,7 @@ def read_diesel_receipt(image: UreaReceiptImage):
 
 
 class PurchaseTotals(BaseModel):
+    liters: Decimal = Field(ge=0)
     supply_amount: Decimal = Field(ge=0)
     vat_amount: Decimal = Field(ge=0)
     total_amount: Decimal = Field(ge=0)
@@ -631,7 +632,7 @@ def _purchase_report(year: int, month: int, kind: str):
     records = _get_purchase_records(year, month, kind)
     # 행별 반올림 결과를 합산하여 표와 월 합계를 일치시킵니다.
     totals = {field: sum((Decimal(str(row[field])) for row in records), Decimal("0"))
-              for field in ("supply_amount", "vat_amount", "total_amount")}
+              for field in ("liters", "supply_amount", "vat_amount", "total_amount")}
     return {"records": records, "totals": totals}
 
 

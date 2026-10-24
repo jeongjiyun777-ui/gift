@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import UreaRecordEditor from "@/components/UreaRecordEditor";
 import { UREA_API_URL as API_URL, type UreaRecord, purchaseEndpoint, type PurchaseKind, type PurchaseTotals, type PurchaseReport } from "@/lib/ureaRecords";
 
-const EMPTY_TOTALS: PurchaseTotals = { supply_amount: "0", vat_amount: "0", total_amount: "0" };
+const EMPTY_TOTALS: PurchaseTotals = { liters: "0", supply_amount: "0", vat_amount: "0", total_amount: "0" };
 
 function formatNumber(value: string, digits: number) {
   return Number(value).toLocaleString("ko-KR", { maximumFractionDigits: digits });
@@ -278,6 +278,9 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
               <div><dt className="text-base font-medium text-slate-600">공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.supply_amount, 2)}원</dd></div>
               <div><dt className="text-base font-medium text-slate-600">세액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.vat_amount, 2)}원</dd></div>
               <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.total_amount, 2)}원</dd></div>
+              {kind === "diesel" && (
+                <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총 주유량</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.liters, 3)} L</dd></div>
+              )}
             </dl>
           </div>
         )}

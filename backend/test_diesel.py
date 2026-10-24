@@ -121,7 +121,7 @@ class DieselTests(unittest.TestCase):
         for get_report in [main.get_urea_report,main.get_diesel_report]:
             report=get_report(2026,9)
             self.assertEqual(len(report['records']),1)
-            self.assertEqual(report['totals'],{'supply_amount':Decimal('13636'),'vat_amount':Decimal('1364'),'total_amount':Decimal('15000')})
+            self.assertEqual(report['totals'],{'liters':Decimal('10'),'supply_amount':Decimal('13636'),'vat_amount':Decimal('1364'),'total_amount':Decimal('15000')})
             self.assertEqual(report['totals']['supply_amount']+report['totals']['vat_amount'],report['totals']['total_amount'])
             validated=main.PurchaseReportResponse(**report)
             self.assertEqual(validated.totals.total_amount,Decimal('15000'))
@@ -141,3 +141,22 @@ class DieselTests(unittest.TestCase):
         for path in ['/urea-records/report','/diesel-records/report']:
             params=paths[path]['get']['parameters']
             self.assertEqual({p['name'] for p in params if p['required']},{'year','month'})
+
+    def test_monthly_liters_sum_all_records_and_excludes_other_months(self):
+        with self.engine.begin() as conn:
+            for record_id in range(3,14):
+                conn.execute(text("INSERT INTO public.diesel_records (id,purchased_on,merchant_name,unit_price,liters,total_amount) VALUES (:id,'2026-09-30','테스트',1000,0.1,100)"),{'id':record_id})
+        report=main.get_diesel_report(2026,9)
+        self.assertEqual(len(report['records']),12)
+        self.assertEqual(report['totals']['liters'],Decimal('11.1'))
+        self.assertEqual(main.get_diesel_report(2026,10)['totals']['liters'],Decimal('20'))
+        self.assertEqual(main.get_diesel_report(2026,8)['totals']['liters'],Decimal('0'))
+        self.assertEqual(main.get_urea_report(2026,9)['totals']['liters'],Decimal('10'))
+        serialized=main.PurchaseReportResponse(**report).model_dump(mode='json')
+        self.assertEqual(serialized['totals']['liters'],'11.1')
+
+    def test_monthly_liters_updates_after_edit_and_delete(self):
+        main.update_diesel_record(1,main.DieselRecordUpdate(liters='20.125'))
+        self.assertEqual(main.get_diesel_report(2026,9)['totals']['liters'],Decimal('20.125'))
+        main.delete_diesel_records(main.DieselRecordDelete(ids=[1]))
+        self.assertEqual(main.get_diesel_report(2026,9)['totals']['liters'],Decimal('0'))

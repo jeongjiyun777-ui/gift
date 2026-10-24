@@ -23,6 +23,7 @@ export function purchaseEndpoint(kind: PurchaseKind) {
 
 
 export interface PurchaseTotals {
+  liters: string;
   supply_amount: string;
   vat_amount: string;
   total_amount: string;
