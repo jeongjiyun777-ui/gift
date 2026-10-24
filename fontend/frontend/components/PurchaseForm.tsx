@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import { prepareReceiptImage, type UreaReceiptResult } from "@/lib/ureaReceipt";
 
@@ -32,6 +33,8 @@ const EMPTY_FORM: Omit<UreaForm, "business_number"> = {
 };
 
 export default function PurchaseForm({ kind }: { kind: PurchaseKind }) {
+  const router = useRouter();
+  const listHref = kind === "diesel" ? "/driving/diesel/records" : "/driving/urea/records";
   const label = kind === "diesel" ? "경유" : "요소수";
   const endpoint = purchaseEndpoint(kind);
   const [form, setForm] = useState<Omit<UreaForm, "business_number">>({ ...EMPTY_FORM });
@@ -143,6 +146,7 @@ export default function PurchaseForm({ kind }: { kind: PurchaseKind }) {
     }
     savingRef.current = true;
     setSaving(true);
+    let saved = false;
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
@@ -161,11 +165,15 @@ export default function PurchaseForm({ kind }: { kind: PurchaseKind }) {
       setForm({ ...EMPTY_FORM });
       setCardChoice("");
       setBusinessParts(["", "", ""]);
+      router.push(listHref);
+      saved = true;
     } catch {
       setError("저장 결과를 확인하지 못했습니다. 중복 입력하지 않도록 기존 기록을 확인한 뒤 다시 시도해 주세요.");
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      if (!saved) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   }
 

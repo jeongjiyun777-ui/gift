@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -10,6 +11,8 @@ import { giftEndpoint } from "@/lib/gifts";
 import type { Gift } from "@/lib/gifts";
 
 export default function GiftForm({ direction }: { direction: "received" | "paid" }) {
+  const router = useRouter();
+  const savingRef = useRef(false);
   const label = direction === "paid" ? "지출금액" : "받은 금액";
   const listHref = direction === "paid" ? "/gifts/paid" : "/";
   const [name, setName] = useState<string>("");
@@ -24,7 +27,7 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving) return;
+    if (savingRef.current) return;
     setError("");
     setSavedGift(null);
     const trimmedName = name.trim();
@@ -37,7 +40,9 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
       setError("지출 날짜를 선택해 주세요.");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    let saved = false;
     try {
       const response = await fetch(`${API_URL}${giftEndpoint(direction)}`, {
         method: "POST",
@@ -60,10 +65,15 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
       setPaidOn("");
       setDetail("");
       setLocation("");
+      router.push(listHref);
+      saved = true;
     } catch {
       setError("저장을 확인하지 못했습니다. 조회 화면에서 내역을 확인한 뒤 다시 시도해 주세요.");
     } finally {
-      setSaving(false);
+      if (!saved) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
