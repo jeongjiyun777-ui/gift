@@ -278,9 +278,7 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
               <div><dt className="text-base font-medium text-slate-600">공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.supply_amount, 2)}원</dd></div>
               <div><dt className="text-base font-medium text-slate-600">세액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.vat_amount, 2)}원</dd></div>
               <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.total_amount, 2)}원</dd></div>
-              {kind === "diesel" && (
-                <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총 주유량</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.liters, 3)} L</dd></div>
-              )}
+              <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">{kind === "diesel" ? "총 주유량" : "총 사용량"}</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.liters, 3)} L</dd></div>
             </dl>
           </div>
         )}
