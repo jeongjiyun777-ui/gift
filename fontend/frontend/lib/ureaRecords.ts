@@ -13,3 +13,10 @@ export interface UreaRecord {
   total_amount: string;
   created_at: string;
 }
+
+
+export type PurchaseKind = "urea" | "diesel";
+
+export function purchaseEndpoint(kind: PurchaseKind) {
+  return kind === "diesel" ? "/diesel-records" : "/urea-records";
+}

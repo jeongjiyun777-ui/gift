@@ -2,7 +2,7 @@
 
 import { Fragment, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { UREA_API_URL, type UreaRecord } from "@/lib/ureaRecords";
+import { UREA_API_URL, type UreaRecord, purchaseEndpoint, type PurchaseKind } from "@/lib/ureaRecords";
 
 const inputClass = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base";
 const fields = [
@@ -10,12 +10,13 @@ const fields = [
   { key: "merchant_name", label: "상호명/대표자", type: "text" },
   { key: "card_company", label: "카드사", type: "text" },
   { key: "unit_price", label: "단가 (원)", type: "number" },
-  { key: "liters", label: "리터 (L)", type: "number" },
+  { key: "liters", label: "수량 (L)", type: "number" },
 ] as const;
 
-export default function UreaRecordEditor({ record, onClose, onSaved }: {
-  record: UreaRecord; onClose: () => void; onSaved: () => Promise<void>;
+export default function UreaRecordEditor({ record, kind = "urea", onClose, onSaved }: {
+  kind?: PurchaseKind; record: UreaRecord; onClose: () => void; onSaved: () => Promise<void>;
 }) {
+  const label = kind === "diesel" ? "경유" : "요소수";
   const [values, setValues] = useState(() => ({
     purchased_on: record.purchased_on, merchant_name: record.merchant_name,
     card_company: record.card_company ?? "", unit_price: record.unit_price, liters: record.liters,
@@ -39,7 +40,7 @@ export default function UreaRecordEditor({ record, onClose, onSaved }: {
       if (key === "unit_price" || key === "liters") {
         const valid = key === "liters" ? /^\d{1,9}(?:\.\d{1,3})?$/.test(value) && Number(value) > 0
           : /^\d{1,10}(?:\.\d{1,2})?$/.test(value);
-        if (!valid) { setError("단가는 0 이상, 리터는 0보다 큰 값으로 입력해 주세요."); return; }
+        if (!valid) { setError("단가는 0 이상, 수량은 0보다 큰 값으로 입력해 주세요."); return; }
       }
       if ((key === "purchased_on" || key === "merchant_name") && !value) {
         setError("날짜와 상호명은 비울 수 없습니다."); return;
@@ -57,7 +58,7 @@ export default function UreaRecordEditor({ record, onClose, onSaved }: {
     lockRef.current = true;
     setSaving(true);
     try {
-      const response = await fetch(`${UREA_API_URL}/urea-records/${record.id}`, {
+      const response = await fetch(`${UREA_API_URL}${purchaseEndpoint(kind)}/${record.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
       });
       if (!response.ok) {
@@ -75,8 +76,8 @@ export default function UreaRecordEditor({ record, onClose, onSaved }: {
 
   return (
     <form onSubmit={handleSave} aria-labelledby="urea-edit-title" className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5">
-      <h2 id="urea-edit-title" className="text-lg font-bold">요소수 수정</h2>
-      <p className="mt-1 text-sm text-slate-600">단가·리터를 변경하면 총액과 공급가액·부가세도 다시 계산됩니다.</p>
+      <h2 id="urea-edit-title" className="text-lg font-bold">{label} 수정</h2>
+      <p className="mt-1 text-sm text-slate-600">단가·수량를 변경하면 총액과 공급가액·부가세도 다시 계산됩니다.</p>
       <fieldset disabled={saving} className="mt-4 grid gap-4 sm:grid-cols-2 disabled:opacity-60">
         {fields.map(({ key, label, type }) => (
           <div key={key}>

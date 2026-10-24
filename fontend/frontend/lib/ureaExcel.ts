@@ -10,11 +10,11 @@ export interface UreaExcelRecord {
   total_amount: string;
 }
 
-export async function createUreaWorkbook(records: UreaExcelRecord[]) {
+export async function createUreaWorkbook(records: UreaExcelRecord[], label: "요소수" | "경유" = "요소수") {
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
-  const sheet = workbook.addWorksheet("요소수");
-  sheet.addRow(["날짜", "상호명/대표자", "사업자번호", "카드사", "단가 (원)", "리터 (L)", "공급가액 (원)", "부가세 (원)", "총액 (원)"]);
+  const sheet = workbook.addWorksheet(label);
+  sheet.addRow(["날짜", "상호명/대표자", "사업자번호", "카드사", "단가 (원)", "수량 (L)", "공급가액 (원)", "부가세 (원)", "총액 (원)"]);
   for (const record of records) {
     sheet.addRow([
       new Date(`${record.purchased_on}T00:00:00Z`), record.merchant_name,

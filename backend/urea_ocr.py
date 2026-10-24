@@ -79,7 +79,9 @@ def normalize_receipt(data: dict) -> UreaReceiptResponse:
     return UreaReceiptResponse(fields=UreaReceiptFields(**clean), warnings=warnings)
 
 
-def recognize_urea_receipt(image: UreaReceiptImage) -> UreaReceiptResponse:
+def recognize_urea_receipt(image: UreaReceiptImage, product: str = "urea") -> UreaReceiptResponse:
+    if product not in ("urea", "diesel"):
+        raise ValueError("지원하지 않는 영수증 종류")
     raw = decode_receipt(image)
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
@@ -95,6 +97,9 @@ business_number: merchant business registration number (10 digits), never card o
 card_company: card issuer name, never card number. unit_price: VAT-inclusive per-liter price of the UREA item only, numeric string without commas.
 If VAT-inclusive unit price is unclear return null. liters: UREA liters only, numeric string. Exclude diesel/gasoline items.
 Do not use total payment or supply amount as unit_price. Output only the requested JSON fields."""
+    if product == "diesel":
+        prompt = prompt.replace("urea/AdBlue", "diesel / 경유").replace("UREA", "DIESEL").replace("Exclude diesel/gasoline items.", "Exclude urea/AdBlue/gasoline items.")
+    prompt += " The receipt may label quantity as 수량 instead of 리터. Map that item's quantity (liters, L) to liters. 단가 × 수량 is the VAT-inclusive total; never put total in unit_price."
     body = {"contents":[{"parts":[{"text":prompt},{"inline_data":{"mime_type":image.mime_type,"data":base64.b64encode(raw).decode("ascii")}}]}],
             "generationConfig":{"responseMimeType":"application/json","responseSchema":schema,"maxOutputTokens":2048}}
     request = Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",

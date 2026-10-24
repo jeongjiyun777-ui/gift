@@ -394,25 +394,7 @@ class UreaRecordResponse(UreaRecordCreate):
 
 @app.post("/urea-records", status_code=201, response_model=UreaRecordResponse, summary="요소수 저장")
 def create_urea_record(record: UreaRecordCreate):
-    total = (record.unit_price * record.liters).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if total > Decimal("999999999999.99"):
-        raise HTTPException(status_code=422, detail="단가와 리터를 곱한 총액이 저장 가능한 범위를 초과합니다.")
-    values = {**record.model_dump(), "total_amount": total}
-    query = text("""
-        INSERT INTO public.urea_records (
-            purchased_on, merchant_name, business_number, card_company,
-            unit_price, liters, total_amount
-        ) VALUES (
-            COALESCE(:purchased_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
-            :merchant_name, :business_number, :card_company,
-            :unit_price, :liters, :total_amount
-        )
-        RETURNING id, purchased_on, merchant_name, business_number, card_company,
-                  unit_price, liters, total_amount, created_at
-    """)
-    with engine.begin() as conn:
-        row = conn.execute(query, values).mappings().one()
-    return dict(row)
+    return _create_purchase(record, "urea")
 
 
 class UreaQueryResponse(UreaRecordResponse):
@@ -433,24 +415,7 @@ def get_urea_records(
     year: Annotated[int, Query(ge=1, le=9998, description="구매 연도")],
     month: Annotated[int, Query(ge=1, le=12, description="구매 월: 1~12")],
 ):
-    start_date = date(year, month, 1)
-    end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
-    query = text("""
-        SELECT id, purchased_on, merchant_name, business_number, card_company,
-               unit_price, liters, total_amount, created_at
-        FROM public.urea_records
-        WHERE purchased_on >= :start_date AND purchased_on < :end_date
-        ORDER BY purchased_on, id
-    """)
-    with engine.connect() as conn:
-        rows = conn.execute(query, {"start_date": start_date, "end_date": end_date}).mappings().all()
-    records = []
-    for row in rows:
-        record = dict(row)
-        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
-        record.update(supply_amount=supply, vat_amount=vat)
-        records.append(record)
-    return records
+    return _get_purchase_records(year, month, "urea")
 
 
 @app.get("/urea-records/export", response_model=list[UreaQueryResponse], summary="요소수 엑셀용 월별·전체 데이터")
@@ -458,25 +423,7 @@ def export_urea_records(
     year: Annotated[int | None, Query(ge=1, le=9998)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ):
-    if (year is None) != (month is None):
-        raise HTTPException(status_code=422, detail="연도와 월을 함께 선택하세요.")
-    if year is not None and month is not None:
-        return get_urea_records(year, month)
-    query = text("""
-        SELECT id, purchased_on, merchant_name, business_number, card_company,
-               unit_price, liters, total_amount, created_at
-        FROM public.urea_records
-        ORDER BY purchased_on, id
-    """)
-    with engine.connect() as conn:
-        rows = conn.execute(query).mappings().all()
-    records = []
-    for row in rows:
-        record = dict(row)
-        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
-        record.update(supply_amount=supply, vat_amount=vat)
-        records.append(record)
-    return records
+    return _export_purchase_records(year, month, "urea")
 
 
 class UreaRecordUpdate(UreaRecordCreate):
@@ -498,12 +445,104 @@ class UreaRecordUpdate(UreaRecordCreate):
 
 @app.patch("/urea-records/{record_id}", response_model=UreaQueryResponse, summary="요소수 부분 수정")
 def update_urea_record(record_id: Annotated[int, Path(gt=0)], changes: UreaRecordUpdate):
+    return _update_purchase(record_id, changes, "urea")
+
+
+class UreaRecordDelete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1)
+
+
+@app.post("/urea-records/delete", summary="선택한 요소수 기록 삭제")
+def delete_urea_records(selection: UreaRecordDelete):
+    return _delete_purchases(selection, "urea")
+
+
+
+@app.post("/urea-records/ocr", response_model=UreaReceiptResponse, summary="Gemini 요소수 영수증 인식 (저장 안 함)")
+def read_urea_receipt(image: UreaReceiptImage):
+    return recognize_urea_receipt(image)
+
+
+def purchase_table(kind: str) -> str:
+    tables = {"urea": "public.urea_records", "diesel": "public.diesel_records"}
+    if kind not in tables:
+        raise ValueError("지원하지 않는 구매 종류")
+    return tables[kind]
+
+
+def _create_purchase(record, kind: str):
+    total = (record.unit_price * record.liters).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if total > Decimal("999999999999.99"):
+        raise HTTPException(status_code=422, detail="단가와 리터를 곱한 총액이 저장 가능한 범위를 초과합니다.")
+    values = {**record.model_dump(), "total_amount": total}
+    query = text(f"""
+        INSERT INTO {purchase_table(kind)} (
+            purchased_on, merchant_name, business_number, card_company,
+            unit_price, liters, total_amount
+        ) VALUES (
+            COALESCE(:purchased_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
+            :merchant_name, :business_number, :card_company,
+            :unit_price, :liters, :total_amount
+        )
+        RETURNING id, purchased_on, merchant_name, business_number, card_company,
+                  unit_price, liters, total_amount, created_at
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(query, values).mappings().one()
+    return dict(row)
+
+
+def _get_purchase_records(year: int, month: int, kind: str):
+    start_date = date(year, month, 1)
+    end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    query = text(f"""
+        SELECT id, purchased_on, merchant_name, business_number, card_company,
+               unit_price, liters, total_amount, created_at
+        FROM {purchase_table(kind)}
+        WHERE purchased_on >= :start_date AND purchased_on < :end_date
+        ORDER BY purchased_on, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"start_date": start_date, "end_date": end_date}).mappings().all()
+    records = []
+    for row in rows:
+        record = dict(row)
+        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
+        record.update(supply_amount=supply, vat_amount=vat)
+        records.append(record)
+    return records
+
+
+def _export_purchase_records(year: int | None, month: int | None, kind: str):
+    if (year is None) != (month is None):
+        raise HTTPException(status_code=422, detail="연도와 월을 함께 선택하세요.")
+    if year is not None and month is not None:
+        return _get_purchase_records(year, month, kind)
+    query = text(f"""
+        SELECT id, purchased_on, merchant_name, business_number, card_company,
+               unit_price, liters, total_amount, created_at
+        FROM {purchase_table(kind)}
+        ORDER BY purchased_on, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    records = []
+    for row in rows:
+        record = dict(row)
+        supply, vat = split_urea_total(Decimal(str(record["total_amount"])))
+        record.update(supply_amount=supply, vat_amount=vat)
+        records.append(record)
+    return records
+
+
+def _update_purchase(record_id: int, changes, kind: str):
     values = changes.model_dump(exclude_unset=True)
     with engine.begin() as conn:
         lock = " FOR UPDATE" if conn.dialect.name == "postgresql" else ""
-        current = conn.execute(text("SELECT unit_price, liters FROM public.urea_records WHERE id=:id" + lock), {"id": record_id}).mappings().one_or_none()
+        current = conn.execute(text(f"SELECT unit_price, liters FROM {purchase_table(kind)} WHERE id=:id" + lock), {"id": record_id}).mappings().one_or_none()
         if current is None:
-            raise HTTPException(status_code=404, detail="요소수 기록이 없습니다.")
+            raise HTTPException(status_code=404, detail="구매 기록이 없습니다.")
         if "unit_price" in values or "liters" in values:
             unit_price = Decimal(str(values.get("unit_price", current["unit_price"])))
             liters = Decimal(str(values.get("liters", current["liters"])))
@@ -513,7 +552,7 @@ def update_urea_record(record_id: Annotated[int, Path(gt=0)], changes: UreaRecor
             values["total_amount"] = total
         assignments = ", ".join(f"{column} = :{column}" for column in values)
         query = text(f"""
-            UPDATE public.urea_records SET {assignments} WHERE id=:record_id
+            UPDATE {purchase_table(kind)} SET {assignments} WHERE id=:record_id
             RETURNING id, purchased_on, merchant_name, business_number, card_company,
                       unit_price, liters, total_amount, created_at
         """)
@@ -524,15 +563,9 @@ def update_urea_record(record_id: Annotated[int, Path(gt=0)], changes: UreaRecor
     return record
 
 
-class UreaRecordDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1)
-
-
-@app.post("/urea-records/delete", summary="선택한 요소수 기록 삭제")
-def delete_urea_records(selection: UreaRecordDelete):
+def _delete_purchases(selection, kind: str):
     ids = sorted(set(selection.ids))
-    query = text("DELETE FROM public.urea_records WHERE id IN :ids RETURNING id").bindparams(bindparam("ids", expanding=True))
+    query = text(f"DELETE FROM {purchase_table(kind)} WHERE id IN :ids RETURNING id").bindparams(bindparam("ids", expanding=True))
     with engine.begin() as conn:
         deleted = conn.execute(query, {"ids": ids}).all()
         if len(deleted) != len(ids):
@@ -541,6 +574,43 @@ def delete_urea_records(selection: UreaRecordDelete):
 
 
 
-@app.post("/urea-records/ocr", response_model=UreaReceiptResponse, summary="Gemini 요소수 영수증 인식 (저장 안 함)")
-def read_urea_receipt(image: UreaReceiptImage):
-    return recognize_urea_receipt(image)
+class DieselRecordCreate(UreaRecordCreate):
+    pass
+
+
+class DieselRecordUpdate(UreaRecordUpdate):
+    pass
+
+
+class DieselRecordDelete(UreaRecordDelete):
+    pass
+
+
+@app.post("/diesel-records", status_code=201, response_model=UreaRecordResponse, summary="경유 저장")
+def create_diesel_record(record: DieselRecordCreate):
+    return _create_purchase(record, "diesel")
+
+
+@app.get("/diesel-records", response_model=list[UreaQueryResponse], summary="경유 구매 연도·월 조회")
+def get_diesel_records(year: Annotated[int, Query(ge=1, le=9998)], month: Annotated[int, Query(ge=1, le=12)]):
+    return _get_purchase_records(year, month, "diesel")
+
+
+@app.get("/diesel-records/export", response_model=list[UreaQueryResponse], summary="경유 엑셀용 월별·전체 데이터")
+def export_diesel_records(year: Annotated[int | None, Query(ge=1, le=9998)] = None, month: Annotated[int | None, Query(ge=1, le=12)] = None):
+    return _export_purchase_records(year, month, "diesel")
+
+
+@app.patch("/diesel-records/{record_id}", response_model=UreaQueryResponse, summary="경유 부분 수정")
+def update_diesel_record(record_id: Annotated[int, Path(gt=0)], changes: DieselRecordUpdate):
+    return _update_purchase(record_id, changes, "diesel")
+
+
+@app.post("/diesel-records/delete", summary="선택한 경유 기록 삭제")
+def delete_diesel_records(selection: DieselRecordDelete):
+    return _delete_purchases(selection, "diesel")
+
+
+@app.post("/diesel-records/ocr", response_model=UreaReceiptResponse, summary="Gemini 경유 영수증 인식 (저장 안 함)")
+def read_diesel_receipt(image: UreaReceiptImage):
+    return recognize_urea_receipt(image, product="diesel")
