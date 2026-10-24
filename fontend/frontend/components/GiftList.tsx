@@ -228,7 +228,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
             <div className="mt-3 w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200">
               <table className={`w-full text-center text-sm sm:text-base [&_th]:whitespace-nowrap ${
                 direction === "paid"
-                  ? "min-w-[960px] [&_th]:px-6 [&_td]:px-6 [&_td]:py-4"
+                  ? "min-w-[1100px] [&_th]:px-6 [&_td]:px-6 [&_td]:py-4"
                   : ""
               }`}>
                 <thead className="bg-slate-50 text-slate-600">
@@ -247,6 +247,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
                     <th scope="col" className="px-4 py-3 text-center font-medium">이름</th>
                     {direction === "paid" && (
                       <>
+                        <th scope="col" className="px-4 py-3 text-center font-medium">날짜</th>
                         <th scope="col" className="px-4 py-3 text-center font-medium">종류</th>
                         <th scope="col" className="px-4 py-3 text-center font-medium">세부사항</th>
                         <th scope="col" className="px-4 py-3 text-center font-medium">장소</th>
@@ -274,6 +275,7 @@ export default function GiftList({ direction }: { direction: "received" | "paid"
                       <td className="px-4 py-3 text-center font-medium">{gift.name}</td>
                       {direction === "paid" && (
                         <>
+                          <td className="px-4 py-3 tabular-nums">{displayGiftText(gift.paid_on)}</td>
                           <td className="px-4 py-3">{displayGiftText(gift.category)}</td>
                           <td className="px-4 py-3">{displayGiftText(gift.detail)}</td>
                           <td className="px-4 py-3">{displayGiftText(gift.location)}</td>

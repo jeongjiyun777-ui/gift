@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS public.paid_gifts (
     category TEXT,
     detail TEXT,
     location TEXT,
+    paid_on DATE,
     source_gift_id INTEGER UNIQUE
 );

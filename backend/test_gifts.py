@@ -20,7 +20,7 @@ class GiftDirectionTests(unittest.TestCase):
         with self.engine.begin() as conn:
             conn.execute(text("ATTACH DATABASE ':memory:' AS public"))
             conn.execute(text("CREATE TABLE public.gifts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, amount BIGINT NOT NULL, direction TEXT NOT NULL DEFAULT 'received' CHECK(direction IN ('received','paid')), category TEXT, detail TEXT, location TEXT)"))
-            conn.execute(text("CREATE TABLE public.paid_gifts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, amount BIGINT NOT NULL, direction TEXT NOT NULL DEFAULT 'paid', category TEXT, detail TEXT, location TEXT)"))
+            conn.execute(text("CREATE TABLE public.paid_gifts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, amount BIGINT NOT NULL, direction TEXT NOT NULL DEFAULT 'paid', category TEXT, detail TEXT, location TEXT, paid_on DATE)"))
             conn.execute(text("INSERT INTO public.gifts (id, name, amount, direction) VALUES (1, '동명이인', 100000, 'received')"))
             conn.execute(text("INSERT INTO public.paid_gifts (id, name, amount) VALUES (1, '동명이인', 50000)"))
 
@@ -93,3 +93,21 @@ class GiftDirectionTests(unittest.TestCase):
             self.assertIsNone(gift.location)
         with self.assertRaises(ValidationError):
             main.PaidGiftCreate(name="　 ", amount=10000)
+
+    def test_paid_date_saved_and_read(self):
+        from datetime import date
+        result = main.create_paid_gift(main.PaidGiftCreate(name="날짜확인", amount=10000, paid_on=" 2026-08-26 "))
+        self.assertEqual(str(result["paid_on"]), "2026-08-26")
+        row = next(r for r in main.get_paid_gifts(None) if r["id"] == result["id"])
+        self.assertEqual(str(row["paid_on"]), "2026-08-26")
+        self.assertEqual(main.PaidGiftCreate(name="테스트", amount=1, paid_on="2028-02-29").paid_on, date(2028, 2, 29))
+
+    def test_invalid_paid_date_rejected(self):
+        for value in ("2026-02-29", "2026-13-01", "2026-04-31", "invalid", 123):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                main.PaidGiftCreate(name="테스트", amount=1, paid_on=value)
+
+    def test_unknown_legacy_date_remains_null(self):
+        result = main.create_paid_gift(main.PaidGiftCreate(name="날짜미상", amount=10000))
+        self.assertIsNone(result["paid_on"])
+        self.assertIsNone(main.get_gifts(None, "received")[0]["paid_on"])

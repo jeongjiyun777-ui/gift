@@ -14,6 +14,7 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
   const listHref = direction === "paid" ? "/gifts/paid" : "/";
   const [name, setName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
+  const [paidOn, setPaidOn] = useState<string>("");
   const [category, setCategory] = useState<string>("축의금");
   const [detail, setDetail] = useState<string>("");
   const [location, setLocation] = useState<string>("");
@@ -32,6 +33,10 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
       setError("이름과 0원 이상의 정수 금액을 입력해 주세요.");
       return;
     }
+    if (direction === "paid" && !paidOn) {
+      setError("지출 날짜를 선택해 주세요.");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch(`${API_URL}${giftEndpoint(direction)}`, {
@@ -40,6 +45,7 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
         body: JSON.stringify({
           name: trimmedName, amount: numericAmount, direction,
           ...(direction === "paid" ? {
+            paid_on: paidOn,
             category: category.trim() || null,
             detail: detail.trim() || null,
             location: location.trim() || null,
@@ -51,6 +57,7 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
       setSavedGift(gift);
       setName("");
       setAmount("");
+      setPaidOn("");
       setDetail("");
       setLocation("");
     } catch {
@@ -97,6 +104,10 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
           </div>
           {direction === "paid" && (
             <>
+              <div>
+                <label htmlFor="gift-paid-on" className="mb-2 block font-semibold">지출 날짜</label>
+                <input id="gift-paid-on" type="date" value={paidOn} onChange={(event) => setPaidOn(event.target.value)} required disabled={saving} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base disabled:opacity-60" />
+              </div>
               <div>
                 <label htmlFor="gift-category" className="mb-2 block font-semibold">종류</label>
                 <select id="gift-category" value={category} onChange={(event) => setCategory(event.target.value)} disabled={saving} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base disabled:opacity-60">

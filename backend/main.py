@@ -47,7 +47,8 @@ def get_gifts(
     search_name = name.strip() if name and name.strip() else None
 
     query = text(f"""
-        SELECT id, name, amount, direction, category, detail, location
+        SELECT id, name, amount, direction, category, detail, location,
+               {"paid_on" if direction == "paid" else "NULL AS paid_on"}
         FROM {gift_table(direction)}
         WHERE direction = :direction AND (:search_name IS NULL OR name ILIKE :name_pattern)
         ORDER BY id
@@ -162,9 +163,20 @@ class GiftCreate(BaseModel):
     category: str | None = Field(default=None, description="금액 종류. 예: 축의금, 조의금")
     detail: str | None = Field(default=None, description="세부사항. 예: 자녀결혼")
     location: str | None = Field(default=None, description="장소. 예: 예식장, 장례식장")
+    paid_on: date | None = Field(default=None, description="지출 날짜: YYYY-MM-DD")
     name: str = Field(min_length=1)
     amount: int = Field(strict=True, ge=0, le=9223372036854775807)
 
+
+    @field_validator("paid_on", mode="before")
+    @classmethod
+    def normalize_paid_date(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return None if value in ("", "-") else value
+        if value is not None and not isinstance(value, date):
+            raise ValueError("날짜는 YYYY-MM-DD 형식으로 입력하세요.")
+        return value
 
     @field_validator("category", "detail", "location", mode="before")
     @classmethod
@@ -181,10 +193,13 @@ class GiftResponse(GiftCreate):
 
 @app.post("/gifts", status_code=201, response_model=GiftResponse, summary="축의금 입력")
 def create_gift(gift: GiftCreate):
+    date_column = ", paid_on" if gift.direction == "paid" else ""
+    date_value = ", :paid_on" if gift.direction == "paid" else ""
+    returned_date = ", paid_on" if gift.direction == "paid" else ", NULL AS paid_on"
     query = text(f"""
-        INSERT INTO {gift_table(gift.direction)} (name, amount, direction, category, detail, location)
-        VALUES (:name, :amount, :direction, :category, :detail, :location)
-        RETURNING id, name, amount, direction, category, detail, location
+        INSERT INTO {gift_table(gift.direction)} (name, amount, direction, category, detail, location{date_column})
+        VALUES (:name, :amount, :direction, :category, :detail, :location{date_value})
+        RETURNING id, name, amount, direction, category, detail, location{returned_date}
     """)
     with engine.begin() as conn:
         row = conn.execute(query, gift.model_dump()).mappings().one()

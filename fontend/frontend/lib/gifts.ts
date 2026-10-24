@@ -6,6 +6,7 @@ export interface Gift {
   category: string | null;
   detail: string | null;
   location: string | null;
+  paid_on: string | null;
 }
 
 export function giftEndpoint(direction: Gift["direction"]) {
