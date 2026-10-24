@@ -17,12 +17,14 @@ const drivingLinks = [
   { href: "/driving", label: "운행 조회", icon: "car" },
   { href: "/driving/urea/records", label: "요소수 조회", icon: "drop" },
   { href: "/driving/diesel/records", label: "경유 조회", icon: "fuel" },
+  { href: "/driving/repairs/records", label: "수리 조회", icon: "tool" },
   { href: "/driving/new", label: "운행 입력", icon: "car" },
   { href: "/driving/urea", label: "요소수 입력", icon: "drop" },
   { href: "/driving/diesel", label: "경유 입력", icon: "fuel" },
+  { href: "/driving/repairs", label: "수리 입력", icon: "tool" },
 ] as const;
 
-function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" | "fuel" }) {
+function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" | "fuel" | "tool" }) {
   return (
     <svg
       aria-hidden="true"
@@ -34,7 +36,9 @@ function HeaderIcon({ icon }: { icon: "gift" | "add" | "car" | "drop" | "fuel" }
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {icon === "fuel" ? (
+      {icon === "tool" ? (
+        <path d="M14.7 6.3a5.5 5.5 0 0 0-7 7L3 18a2.1 2.1 0 0 0 3 3l4.7-4.7a5.5 5.5 0 0 0 7-7l-3.4 3.4-3-3 3.4-3.4Z" />
+      ) : icon === "fuel" ? (
         <>
           <path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M2 21h14M4 11h10M7 6h4v2H7z" />
           <path d="M14 12h2a2 2 0 0 1 2 2v3a2 2 0 0 0 4 0V8l-4-4M19 5v4h3" />
