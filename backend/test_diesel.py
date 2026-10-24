@@ -116,3 +116,28 @@ class DieselTests(unittest.TestCase):
         self.assertIn('Exclude urea/AdBlue/gasoline',prompt)
         self.assertEqual(result.fields.liters,'40')
         self.assertEqual(len(main.export_diesel_records(None,None)),2)
+
+    def test_monthly_reports_are_isolated_and_sum_displayed_rows(self):
+        for get_report in [main.get_urea_report,main.get_diesel_report]:
+            report=get_report(2026,9)
+            self.assertEqual(len(report['records']),1)
+            self.assertEqual(report['totals'],{'supply_amount':Decimal('13636'),'vat_amount':Decimal('1364'),'total_amount':Decimal('15000')})
+            self.assertEqual(report['totals']['supply_amount']+report['totals']['vat_amount'],report['totals']['total_amount'])
+            validated=main.PurchaseReportResponse(**report)
+            self.assertEqual(validated.totals.total_amount,Decimal('15000'))
+        self.assertEqual(main.get_urea_report(2026,10)['records'],[])
+        self.assertEqual(main.get_urea_report(2026,10)['totals']['total_amount'],Decimal('0'))
+        self.assertEqual(main.get_diesel_report(2026,10)['totals']['total_amount'],Decimal('32000'))
+
+    def test_report_after_price_change_uses_recalculated_total(self):
+        main.update_diesel_record(1,main.DieselRecordUpdate(unit_price='1600'))
+        report=main.get_diesel_report(2026,9)
+        self.assertEqual(report['totals']['total_amount'],Decimal('16000'))
+        self.assertEqual(sum(r['supply_amount'] for r in report['records']),report['totals']['supply_amount'])
+        self.assertEqual(sum(r['vat_amount'] for r in report['records']),report['totals']['vat_amount'])
+
+    def test_report_schema_requires_selected_month(self):
+        paths=main.app.openapi()['paths']
+        for path in ['/urea-records/report','/diesel-records/report']:
+            params=paths[path]['get']['parameters']
+            self.assertEqual({p['name'] for p in params if p['required']},{'year','month'})

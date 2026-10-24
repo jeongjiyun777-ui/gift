@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import UreaRecordEditor from "@/components/UreaRecordEditor";
-import { UREA_API_URL as API_URL, type UreaRecord, purchaseEndpoint, type PurchaseKind } from "@/lib/ureaRecords";
+import { UREA_API_URL as API_URL, type UreaRecord, purchaseEndpoint, type PurchaseKind, type PurchaseTotals, type PurchaseReport } from "@/lib/ureaRecords";
+
+const EMPTY_TOTALS: PurchaseTotals = { supply_amount: "0", vat_amount: "0", total_amount: "0" };
 
 function formatNumber(value: string, digits: number) {
   return Number(value).toLocaleString("ko-KR", { maximumFractionDigits: digits });
@@ -16,6 +18,7 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
   const [period, setPeriod] = useState("");
   const [appliedPeriod, setAppliedPeriod] = useState("");
   const [records, setRecords] = useState<UreaRecord[]>([]);
+  const [totals, setTotals] = useState<PurchaseTotals>(EMPTY_TOTALS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
@@ -45,6 +48,7 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
     setPeriod(value);
     setAppliedPeriod("");
     setRecords([]);
+    setTotals(EMPTY_TOTALS);
     setError("");
     setLoading(false);
   }
@@ -66,15 +70,17 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
     setError("");
     setAppliedPeriod("");
     setRecords([]);
+    setTotals(EMPTY_TOTALS);
     try {
       const params = new URLSearchParams({ year: String(year), month: String(month) });
-      const response = await fetch(`${API_URL}${endpoint}?${params}`, {
+      const response = await fetch(`${API_URL}${endpoint}/report?${params}`, {
         cache: "no-store", signal: controller.signal,
       });
       if (!response.ok) throw new Error("조회 실패");
-      const data: UreaRecord[] = await response.json();
+      const data: PurchaseReport = await response.json();
       if (controller.signal.aborted) return;
-      setRecords(data);
+      setRecords(data.records);
+      setTotals(data.totals);
       setAppliedPeriod(period);
     } catch {
       if (!controller.signal.aborted) setError("조회하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -135,10 +141,11 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
   async function reloadCurrentMonth() {
     const [year, month] = appliedPeriod.split("-");
     const params = new URLSearchParams({ year, month });
-    const response = await fetch(`${API_URL}${endpoint}?${params}`, { cache: "no-store" });
+    const response = await fetch(`${API_URL}${endpoint}/report?${params}`, { cache: "no-store" });
     if (!response.ok) throw new Error("재조회 실패");
-    const data: UreaRecord[] = await response.json();
-    setRecords(data);
+    const data: PurchaseReport = await response.json();
+    setRecords(data.records);
+    setTotals(data.totals);
     setSelectedIds([]);
   }
 
@@ -159,6 +166,7 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
       await reloadCurrentMonth();
     } catch {
       setRecords([]);
+    setTotals(EMPTY_TOTALS);
       setSelectedIds([]);
       setMutationError("수정은 완료됐지만 재조회하지 못했습니다. 그 달 조회하기를 눌러 주세요.");
     } finally {
@@ -188,7 +196,7 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
       setMutationMessage(`${selected.length}건을 삭제했습니다.`);
       await reloadCurrentMonth();
     } catch {
-      if (deleted) { setRecords([]); setSelectedIds([]); }
+      if (deleted) { setRecords([]); setTotals(EMPTY_TOTALS); setSelectedIds([]); }
       setMutationError(deleted ? "삭제는 완료됐지만 재조회하지 못했습니다. 그 달 조회하기를 눌러 주세요."
         : "삭제 결과를 확인하지 못했습니다. 다시 조회해 기록을 확인해 주세요.");
     } finally {
@@ -234,16 +242,16 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
           </div>
         )}
         <div className="mt-5 w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[1350px] text-center text-sm sm:text-base [&_th]:whitespace-nowrap [&_th]:px-6 [&_th]:py-3 [&_td]:whitespace-nowrap [&_td]:px-6 [&_td]:py-4 [&_td]:align-middle">
-            <thead className="bg-slate-50 text-slate-600">
+          <table className="w-full min-w-[1350px] border-collapse text-center text-sm [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-r [&_th]:border-slate-200 [&_th]:px-4 [&_th]:py-3 [&_th:last-child]:border-r-0 [&_td]:whitespace-nowrap [&_td]:border-r [&_td]:border-slate-200 [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle [&_td:last-child]:border-r-0">
+            <thead className="bg-slate-100 text-slate-700">
               <tr>
                 <th scope="col"><input type="checkbox" aria-label="조회한 달 전체 선택" disabled={busy} checked={records.length > 0 && records.every((row) => selectedIds.includes(row.id))} onChange={(event) => setSelectedIds(event.target.checked ? records.map((row) => row.id) : [])} className="h-4 w-4 accent-blue-600" /></th>
-                {["날짜", "상호명/대표자", "사업자번호", "카드사", "단가 (원)", "수량 (L)", "공급가액 (원)", "부가세 (원)", "총액 (원)"].map((heading) => (
-                  <th key={heading} scope="col" className="font-medium">{heading}</th>
+                {["날짜", "상호명/대표자", "사업자번호", "카드사", "단가 (원)", "수량 (L)", "공급가액 (원)", "세액 (원)", "총액 (원)"].map((heading) => (
+                  <th key={heading} scope="col" className="font-semibold">{heading}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {records.length > 0 ? records.map((record) => (
                 <tr key={record.id} className="hover:bg-slate-50">
                   <td><input type="checkbox" aria-label={`${record.purchased_on} ${record.merchant_name} 선택`} disabled={busy} checked={selectedIds.includes(record.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids,record.id] : ids.filter((id) => id !== record.id))} className="h-4 w-4 accent-blue-600" /></td>
@@ -263,6 +271,16 @@ export default function PurchaseRecords({ kind }: { kind: PurchaseKind }) {
             </tbody>
           </table>
         </div>
+        {appliedPeriod && !loading && !error && (
+          <div aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
+            <p className="text-base font-medium text-slate-600">{appliedPeriod.replace("-", "년 ")}월 · 조회한 전체 기록 합계</p>
+            <dl className="mt-4 space-y-4">
+              <div><dt className="text-base font-medium text-slate-600">공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.supply_amount, 2)}원</dd></div>
+              <div><dt className="text-base font-medium text-slate-600">세액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{formatNumber(totals.vat_amount, 2)}원</dd></div>
+              <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.total_amount, 2)}원</dd></div>
+            </dl>
+          </div>
+        )}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p aria-live="polite" className="text-sm text-slate-500">
             {appliedPeriod ? `${appliedPeriod.replace("-", "년 ")}월 · 총 ${records.length}건` : "월을 선택해 주세요."}

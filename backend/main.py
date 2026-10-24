@@ -614,3 +614,32 @@ def delete_diesel_records(selection: DieselRecordDelete):
 @app.post("/diesel-records/ocr", response_model=UreaReceiptResponse, summary="Gemini 경유 영수증 인식 (저장 안 함)")
 def read_diesel_receipt(image: UreaReceiptImage):
     return recognize_urea_receipt(image, product="diesel")
+
+
+class PurchaseTotals(BaseModel):
+    supply_amount: Decimal = Field(ge=0)
+    vat_amount: Decimal = Field(ge=0)
+    total_amount: Decimal = Field(ge=0)
+
+
+class PurchaseReportResponse(BaseModel):
+    records: list[UreaQueryResponse]
+    totals: PurchaseTotals
+
+
+def _purchase_report(year: int, month: int, kind: str):
+    records = _get_purchase_records(year, month, kind)
+    # 행별 반올림 결과를 합산하여 표와 월 합계를 일치시킵니다.
+    totals = {field: sum((Decimal(str(row[field])) for row in records), Decimal("0"))
+              for field in ("supply_amount", "vat_amount", "total_amount")}
+    return {"records": records, "totals": totals}
+
+
+@app.get("/urea-records/report", response_model=PurchaseReportResponse, summary="요소수 월별 공급가액·세액·총액 합계")
+def get_urea_report(year: Annotated[int, Query(ge=1, le=9998)], month: Annotated[int, Query(ge=1, le=12)]):
+    return _purchase_report(year, month, "urea")
+
+
+@app.get("/diesel-records/report", response_model=PurchaseReportResponse, summary="경유 월별 공급가액·세액·총액 합계")
+def get_diesel_report(year: Annotated[int, Query(ge=1, le=9998)], month: Annotated[int, Query(ge=1, le=12)]):
+    return _purchase_report(year, month, "diesel")

@@ -20,3 +20,15 @@ export type PurchaseKind = "urea" | "diesel";
 export function purchaseEndpoint(kind: PurchaseKind) {
   return kind === "diesel" ? "/diesel-records" : "/urea-records";
 }
+
+
+export interface PurchaseTotals {
+  supply_amount: string;
+  vat_amount: string;
+  total_amount: string;
+}
+
+export interface PurchaseReport {
+  records: UreaRecord[];
+  totals: PurchaseTotals;
+}
