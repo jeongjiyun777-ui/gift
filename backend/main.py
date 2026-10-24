@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import bindparam, create_engine, text
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from urea_ocr import UreaReceiptImage, UreaReceiptResponse, recognize_urea_receipt
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -516,3 +517,9 @@ def delete_urea_records(selection: UreaRecordDelete):
         if len(deleted) != len(ids):
             raise HTTPException(status_code=409, detail="선택한 기록 중 없는 기록이 있습니다. 다시 조회해 주세요.")
     return {"deleted_count": len(deleted)}
+
+
+
+@app.post("/urea-records/ocr", response_model=UreaReceiptResponse, summary="Gemini 요소수 영수증 인식 (저장 안 함)")
+def read_urea_receipt(image: UreaReceiptImage):
+    return recognize_urea_receipt(image)

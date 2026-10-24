@@ -1,7 +1,9 @@
 "use client";
 
-import { Fragment, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+
+import { prepareReceiptImage, type UreaReceiptResult } from "@/lib/ureaReceipt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const CARD_COMPANIES = ["신한카드", "삼성카드", "현대카드", "KB국민카드", "롯데카드", "하나카드", "우리카드", "NH농협카드", "BC카드"];
@@ -34,7 +36,65 @@ export default function UreaPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [savedRecord, setSavedRecord] = useState<UreaRecord | null>(null);
+  const [recognizing, setRecognizing] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState("");
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
+  const ocrRequestRef = useRef<AbortController | null>(null);
   const savingRef = useRef(false);
+
+  useEffect(() => () => ocrRequestRef.current?.abort(), []);
+
+  async function handleReceiptPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || savingRef.current || ocrRequestRef.current) return;
+    if ((Object.values(form).some((value) => value.trim()) || businessParts.some(Boolean)) &&
+        !window.confirm("사진을 인식하면 현재 입력 내용을 영수증 내용으로 바꿉니다. 계속하시겠습니까?")) return;
+    const controller = new AbortController();
+    ocrRequestRef.current = controller;
+    setRecognizing(true);
+    setError("");
+    setOcrMessage("");
+    setSavedRecord(null);
+    try {
+      const payload = await prepareReceiptImage(file);
+      if (controller.signal.aborted) return;
+      const response = await fetch(`${API_URL}/urea-records/ocr`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload), signal: controller.signal,
+      });
+      if (!response.ok) {
+        const problem: { detail?: unknown } = await response.json().catch(() => ({}));
+        throw new Error(typeof problem.detail === "string" ? problem.detail : "사진을 인식하지 못했습니다. 다시 촬영해 주세요.");
+      }
+      const result: UreaReceiptResult = await response.json();
+      if (controller.signal.aborted) return;
+      const fields = result.fields;
+      setForm({
+        purchased_on: fields.purchased_on ?? "", merchant_name: fields.merchant_name ?? "",
+        card_company: fields.card_company ?? "", unit_price: fields.unit_price ?? "", liters: fields.liters ?? "",
+      });
+      const digits = (fields.business_number ?? "").replace(/[^0-9]/g, "");
+      setBusinessParts([digits.slice(0,3), digits.slice(3,5), digits.slice(5,10)]);
+      const normalized = (fields.card_company ?? "").replace(/\s/g, "");
+      const matchedCard = CARD_COMPANIES.find((card) => card === normalized ||
+        card.replace("카드", "") === normalized || card === `${normalized}카드`);
+      if (matchedCard) {
+        setCardChoice(matchedCard);
+        setForm((previous) => ({ ...previous, card_company: matchedCard }));
+      } else {
+        setCardChoice(fields.card_company ? "custom" : "");
+      }
+      setOcrMessage(result.warnings.join(" "));
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "사진을 인식하지 못했습니다.");
+    } finally {
+      if (ocrRequestRef.current === controller && !controller.signal.aborted) {
+        ocrRequestRef.current = null;
+        setRecognizing(false);
+      }
+    }
+  }
 
   function updateField(field: keyof typeof EMPTY_FORM, value: string) {
     setForm((previous) => ({ ...previous, [field]: value }));
@@ -53,7 +113,7 @@ export default function UreaPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (savingRef.current) return;
+    if (savingRef.current || ocrRequestRef.current) return;
     setError("");
     setSavedRecord(null);
     if (!complete || !event.currentTarget.reportValidity()) {
@@ -107,14 +167,28 @@ export default function UreaPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">요소수 입력</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">요소수 입력</h1>
+        <button type="button" disabled={saving || recognizing} onClick={() => receiptInputRef.current?.click()}
+          aria-label="카메라로 영수증 인식" title="영수증 촬영 또는 사진 선택"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50">
+          <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+            <circle cx="12" cy="13" r="4" /><path d="M18 10h.01" />
+          </svg>
+          <span className="hidden sm:inline">{recognizing ? "인식 중..." : "영수증 촬영"}</span>
+        </button>
+        <input ref={receiptInputRef} type="file" accept="image/*" capture="environment" onChange={handleReceiptPhoto} disabled={saving || recognizing} className="hidden" />
+      </div>
       <p className="mt-2 text-sm text-slate-500">영수증을 보고 모든 항목을 입력해 주세요.</p>
-      <form onSubmit={handleSubmit} className="mt-7 space-y-5" aria-busy={saving}>
-        <fieldset disabled={saving} className="space-y-5">
+      {recognizing && <p role="status" className="mt-3 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">영수증을 읽고 있습니다. 잠시 기다려 주세요.</p>}
+      {ocrMessage && <p role="status" className="mt-3 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">{ocrMessage}</p>}
+      <form onSubmit={handleSubmit} className="mt-7 space-y-5" aria-busy={saving || recognizing}>
+        <fieldset disabled={saving || recognizing} className="space-y-5">
           <legend className="sr-only">요소수 구매 정보</legend>
           <div>
             <label htmlFor="urea-date" className="mb-2 block font-semibold">날짜</label>
-            <input id="urea-date" type="date" required value={form.purchased_on} onChange={(event) => updateField("purchased_on", event.target.value)} className={INPUT_CLASS} />
+            <input id="urea-date" type="date" required value={form.purchased_on} onChange={(event) => updateField("purchased_on", event.target.value)} className={`${INPUT_CLASS} max-w-[220px]`} />
           </div>
           <div>
             <label htmlFor="urea-merchant" className="mb-2 block font-semibold">상호명/대표자</label>
@@ -168,7 +242,7 @@ export default function UreaPage() {
           </div>
           <p className="text-sm text-slate-500">총액은 단가 × 리터로 자동 계산하여 저장합니다.</p>
           <div className="flex justify-end pt-2">
-            <button type="submit" disabled={saving || !complete} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={saving || recognizing || !complete} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? "저장 중..." : "저장하기"}
             </button>
           </div>
