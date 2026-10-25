@@ -817,3 +817,77 @@ def get_repair_report(
     totals = {field: sum((Decimal(str(row[field])) for row in records if row[field] is not None), Decimal("0"))
               for field in ("supply_amount", "vat_amount", "total_amount", "monthly_amount")}
     return {"records": records, "totals": totals}
+
+
+class DrivingOverviewResponse(BaseModel):
+    year: int
+    month: int
+    driving_supply_amount: Decimal
+    urea_total_amount: Decimal
+    diesel_total_amount: Decimal
+    repair_total_amount: Decimal
+    expense_total_amount: Decimal
+    balance_amount: Decimal
+    urea_supply_amount: Decimal
+    diesel_supply_amount: Decimal
+    repair_supply_amount: Decimal
+    urea_vat_amount: Decimal
+    diesel_vat_amount: Decimal
+    repair_vat_amount: Decimal
+    expense_supply_amount: Decimal
+    input_vat_amount: Decimal
+    output_vat_amount: Decimal
+    vat_balance_amount: Decimal
+
+
+@app.get("/driving-overview", response_model=DrivingOverviewResponse, summary="월별 공급가액 수입·지출 및 매출·매입 세액 계산")
+def get_driving_overview(
+    year: Annotated[int, Query(ge=1, le=9998)],
+    month: Annotated[int, Query(ge=1, le=12)],
+):
+    start_date = date(year, month, 1)
+    end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    # 각 집계가 반드시 한 행을 반환하므로 CROSS JOIN으로 원본 행이 증식하지 않습니다.
+    query = text("""
+        SELECT driving.amount AS driving_supply_amount,
+               urea.amount AS urea_total_amount,
+               diesel.amount AS diesel_total_amount,
+               repair.amount AS repair_total_amount,
+               driving.vat AS output_vat_amount,
+               urea.supply AS urea_supply_amount,
+               diesel.supply AS diesel_supply_amount,
+               repair.supply AS repair_supply_amount
+        FROM (SELECT COALESCE(SUM(charge_amount), 0) AS amount, COALESCE(SUM(ROUND(charge_amount * 0.1, 0)), 0) AS vat
+              FROM public.driving_records
+              WHERE operated_on >= :start_date AND operated_on < :end_date) AS driving
+        CROSS JOIN (SELECT COALESCE(SUM(total_amount), 0) AS amount,
+                           COALESCE(SUM(ROUND(total_amount / 1.1, CASE WHEN total_amount = ROUND(total_amount, 0) THEN 0 ELSE 2 END)), 0) AS supply
+                    FROM public.urea_records
+                    WHERE purchased_on >= :start_date AND purchased_on < :end_date) AS urea
+        CROSS JOIN (SELECT COALESCE(SUM(total_amount), 0) AS amount,
+                           COALESCE(SUM(ROUND(total_amount / 1.1, CASE WHEN total_amount = ROUND(total_amount, 0) THEN 0 ELSE 2 END)), 0) AS supply
+                    FROM public.diesel_records
+                    WHERE purchased_on >= :start_date AND purchased_on < :end_date) AS diesel
+        CROSS JOIN (SELECT COALESCE(SUM(total_amount), 0) AS amount,
+                           COALESCE(SUM(ROUND(total_amount / 1.1, CASE WHEN total_amount = ROUND(total_amount, 0) THEN 0 ELSE 2 END)), 0) AS supply
+                    FROM public.repair_records
+                    WHERE repaired_at >= :start_time AND repaired_at < :end_time) AS repair
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {
+            "start_date": start_date, "end_date": end_date,
+            "start_time": datetime(year, month, 1, tzinfo=KOREA_TIMEZONE),
+            "end_time": datetime(end_date.year, end_date.month, 1, tzinfo=KOREA_TIMEZONE),
+        }).mappings().one()
+    amounts = {key: Decimal(str(value)) for key, value in row.items()}
+    expenses = sum((amounts[key] for key in ("urea_total_amount", "diesel_total_amount", "repair_total_amount")), Decimal("0"))
+    for kind in ("urea", "diesel", "repair"):
+        amounts[f"{kind}_vat_amount"] = amounts[f"{kind}_total_amount"] - amounts[f"{kind}_supply_amount"]
+    supply_expenses = sum((amounts[f"{kind}_supply_amount"] for kind in ("urea", "diesel", "repair")), Decimal("0"))
+    input_vat = expenses - supply_expenses
+    return {"year": year, "month": month, **amounts,
+            "expense_total_amount": expenses,
+            "expense_supply_amount": supply_expenses,
+            "balance_amount": amounts["driving_supply_amount"] - supply_expenses,
+            "input_vat_amount": input_vat,
+            "vat_balance_amount": amounts["output_vat_amount"] - input_vat}
