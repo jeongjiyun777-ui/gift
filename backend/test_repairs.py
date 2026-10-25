@@ -98,3 +98,37 @@ class RepairMutationTests(unittest.TestCase):
         for ids in [[], [0], [True], ["1"]]:
             with self.subTest(ids=ids), self.assertRaises(ValidationError):
                 main.RepairRecordDelete(ids=ids)
+
+
+class RepairCalculationTests(unittest.TestCase):
+    def amounts(self, total, months):
+        return main.repair_amounts({"total_amount": Decimal(total), "installment_months": months})
+
+    def test_tax_and_five_installments(self):
+        row = self.amounts("110000",5)
+        self.assertEqual(row["supply_amount"], Decimal("100000"))
+        self.assertEqual(row["vat_amount"], Decimal("10000"))
+        self.assertEqual(row["monthly_amount"], Decimal("22000"))
+
+    def test_rounding_remainder_reconciles(self):
+        for total, months in [("10000",3),("10",12),("0.05",12),("100.01",7)]:
+            with self.subTest(total=total,months=months):
+                row = self.amounts(total,months)
+                self.assertGreaterEqual(row["last_installment_amount"],0)
+                self.assertEqual(row["monthly_amount"]*(months-1)+row["last_installment_amount"],Decimal(total))
+                self.assertEqual(row["supply_amount"]+row["vat_amount"],Decimal(total))
+
+    def test_lump_sum_and_unknown(self):
+        self.assertEqual(self.amounts("100",0)["monthly_amount"],Decimal("100"))
+        self.assertIsNone(self.amounts("100",None)["monthly_amount"])
+
+    def test_report_sums_displayed_rows_and_empty_month(self):
+        rows = [self.amounts("110000",5),self.amounts("10000",3),self.amounts("100",None)]
+        with patch.object(main,"get_repair_records",return_value=rows) as query:
+            result=main.get_repair_report(2026,10)
+            query.assert_called_once_with(2026,10)
+        self.assertEqual(result["totals"]["total_amount"],Decimal("120100"))
+        self.assertEqual(result["totals"]["monthly_amount"],Decimal("25333"))
+        self.assertEqual(result["totals"]["supply_amount"]+result["totals"]["vat_amount"],Decimal("120100"))
+        with patch.object(main,"get_repair_records",return_value=[]):
+            self.assertTrue(all(value==0 for value in main.get_repair_report(2026,10)["totals"].values()))

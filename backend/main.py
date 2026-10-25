@@ -704,7 +704,33 @@ def create_repair_record(record: RepairRecordCreate):
     return dict(row)
 
 
-@app.get("/repair-records", response_model=list[RepairRecordResponse], summary="수리 내역 연도·월 조회")
+class RepairQueryResponse(RepairRecordResponse):
+    supply_amount: Decimal
+    vat_amount: Decimal
+    monthly_amount: Decimal | None
+    last_installment_amount: Decimal | None
+
+
+def repair_amounts(row):
+    record = dict(row)
+    total = Decimal(str(record["total_amount"]))
+    supply, vat = split_urea_total(total)
+    months = record["installment_months"]
+    monthly = last = None
+    if months is not None:
+        count = max(months, 1)
+        quantum = Decimal("1") if total == total.to_integral_value() else Decimal("0.01")
+        monthly = (total / count).quantize(quantum, rounding=ROUND_HALF_UP)
+        # 아주 작은 금액도 마지막 회차가 음수가 되지 않게 합니다.
+        if monthly * (count - 1) > total:
+            monthly = (total / count).quantize(quantum, rounding="ROUND_DOWN")
+        last = total - monthly * (count - 1)
+    record.update(supply_amount=supply, vat_amount=vat,
+                  monthly_amount=monthly, last_installment_amount=last)
+    return record
+
+
+@app.get("/repair-records", response_model=list[RepairQueryResponse], summary="수리 내역 연도·월 조회")
 def get_repair_records(
     year: Annotated[int, Query(ge=1, le=9998)],
     month: Annotated[int, Query(ge=1, le=12)],
@@ -720,7 +746,7 @@ def get_repair_records(
     """)
     with engine.connect() as conn:
         rows = conn.execute(query, {"start": start, "end": end}).mappings().all()
-    return [dict(row) for row in rows]
+    return [repair_amounts(row) for row in rows]
 
 
 class RepairRecordUpdate(RepairRecordCreate):
@@ -768,3 +794,26 @@ def delete_repair_records(selection: RepairRecordDelete):
         if len(deleted) != len(ids):
             raise HTTPException(status_code=409, detail="선택한 기록 중 없는 기록이 있습니다. 다시 조회해 주세요.")
     return {"deleted_count": len(deleted)}
+
+
+class RepairTotals(BaseModel):
+    supply_amount: Decimal
+    vat_amount: Decimal
+    total_amount: Decimal
+    monthly_amount: Decimal
+
+
+class RepairReportResponse(BaseModel):
+    records: list[RepairQueryResponse]
+    totals: RepairTotals
+
+
+@app.get("/repair-records/report", response_model=RepairReportResponse, summary="수리 월별 금액·할부 합계")
+def get_repair_report(
+    year: Annotated[int, Query(ge=1, le=9998)],
+    month: Annotated[int, Query(ge=1, le=12)],
+):
+    records = get_repair_records(year, month)
+    totals = {field: sum((Decimal(str(row[field])) for row in records if row[field] is not None), Decimal("0"))
+              for field in ("supply_amount", "vat_amount", "total_amount", "monthly_amount")}
+    return {"records": records, "totals": totals}

@@ -8,9 +8,24 @@ export interface RepairRecord {
   installment_months: number | null;
   total_amount: string;
   created_at: string;
+  supply_amount: string;
+  vat_amount: string;
+  monthly_amount: string | null;
+  last_installment_amount: string | null;
 }
 export function repairDate(value: string) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export interface RepairTotals {
+  supply_amount: string;
+  vat_amount: string;
+  total_amount: string;
+  monthly_amount: string;
+}
+export interface RepairReport {
+  records: RepairRecord[];
+  totals: RepairTotals;
 }

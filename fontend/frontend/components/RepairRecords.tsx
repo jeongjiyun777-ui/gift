@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import RepairRecordEditor from "@/components/RepairRecordEditor";
-import { REPAIR_API_URL as API_URL, type RepairRecord, repairDate } from "@/lib/repairRecords";
+import { REPAIR_API_URL as API_URL, type RepairRecord, type RepairTotals, type RepairReport, repairDate } from "@/lib/repairRecords";
+
+const EMPTY_TOTALS: RepairTotals = { supply_amount: "0", vat_amount: "0", total_amount: "0", monthly_amount: "0" };
 
 function formatNumber(value: string, digits: number) {
   return Number(value).toLocaleString("ko-KR", { maximumFractionDigits: digits });
@@ -15,6 +17,7 @@ export default function RepairRecords() {
   const endpoint = "/repair-records";
   const [period, setPeriod] = useState("");
   const [appliedPeriod, setAppliedPeriod] = useState("");
+  const [totals, setTotals] = useState<RepairTotals>(EMPTY_TOTALS);
   const [records, setRecords] = useState<RepairRecord[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -43,7 +46,7 @@ export default function RepairRecords() {
     setMutationMessage("");
     setPeriod(value);
     setAppliedPeriod("");
-    setRecords([]);
+    setRecords([]); setTotals(EMPTY_TOTALS);
     setError("");
     setLoading(false);
   }
@@ -64,16 +67,17 @@ export default function RepairRecords() {
     setLoading(true);
     setError("");
     setAppliedPeriod("");
-    setRecords([]);
+    setRecords([]); setTotals(EMPTY_TOTALS);
     try {
       const params = new URLSearchParams({ year: String(year), month: String(month) });
-      const response = await fetch(`${API_URL}${endpoint}?${params}`, {
+      const response = await fetch(`${API_URL}${endpoint}/report?${params}`, {
         cache: "no-store", signal: controller.signal,
       });
       if (!response.ok) throw new Error("조회 실패");
-      const data: RepairRecord[] = await response.json();
+      const data: RepairReport = await response.json();
       if (controller.signal.aborted) return;
-      setRecords(data);
+      setRecords(data.records);
+    setTotals(data.totals);
       setAppliedPeriod(period);
     } catch {
       if (!controller.signal.aborted) setError("조회하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -88,10 +92,11 @@ export default function RepairRecords() {
   async function reloadCurrentMonth() {
     const [year, month] = appliedPeriod.split("-");
     const params = new URLSearchParams({ year, month });
-    const response = await fetch(`${API_URL}${endpoint}?${params}`, { cache: "no-store" });
+    const response = await fetch(`${API_URL}${endpoint}/report?${params}`, { cache: "no-store" });
     if (!response.ok) throw new Error("재조회 실패");
-    const data: RepairRecord[] = await response.json();
-    setRecords(data);
+    const data: RepairReport = await response.json();
+    setRecords(data.records);
+    setTotals(data.totals);
     setSelectedIds([]);
   }
 
@@ -111,7 +116,7 @@ export default function RepairRecords() {
     try {
       await reloadCurrentMonth();
     } catch {
-      setRecords([]);
+      setRecords([]); setTotals(EMPTY_TOTALS);
       setSelectedIds([]);
       setMutationError("수정은 완료됐지만 재조회하지 못했습니다. 그 달 조회하기를 눌러 주세요.");
     } finally {
@@ -141,7 +146,7 @@ export default function RepairRecords() {
       setMutationMessage(`${selected.length}건을 삭제했습니다.`);
       await reloadCurrentMonth();
     } catch {
-      if (deleted) { setRecords([]); setSelectedIds([]); }
+      if (deleted) { setRecords([]); setTotals(EMPTY_TOTALS); setSelectedIds([]); }
       setMutationError(deleted ? "삭제는 완료됐지만 재조회하지 못했습니다. 그 달 조회하기를 눌러 주세요."
         : "삭제 결과를 확인하지 못했습니다. 다시 조회해 기록을 확인해 주세요.");
     } finally {
@@ -176,11 +181,11 @@ export default function RepairRecords() {
           </div>
         )}
         <div className="mt-5 w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[1100px] border-collapse text-center text-sm [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-r [&_th]:border-slate-200 [&_th]:px-4 [&_th]:py-3 [&_th:last-child]:border-r-0 [&_td]:whitespace-nowrap [&_td]:border-r [&_td]:border-slate-200 [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle [&_td:last-child]:border-r-0">
+          <table className="w-full min-w-[1450px] border-collapse text-center text-sm [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-r [&_th]:border-slate-200 [&_th]:px-4 [&_th]:py-3 [&_th:last-child]:border-r-0 [&_td]:whitespace-nowrap [&_td]:border-r [&_td]:border-slate-200 [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle [&_td:last-child]:border-r-0">
             <thead className="bg-slate-100 text-slate-700">
               <tr>
                 <th scope="col"><input type="checkbox" aria-label="조회한 달 전체 선택" disabled={busy} checked={records.length > 0 && records.every((row) => selectedIds.includes(row.id))} onChange={(event) => setSelectedIds(event.target.checked ? records.map((row) => row.id) : [])} className="h-4 w-4 accent-blue-600" /></th>
-                {["날짜", "상호명/대표자", "사업자번호", "카드사", "개월", "총액 (원)"].map((heading) => (
+                {["날짜", "상호명/대표자", "사업자번호", "카드사", "개월", "월 할부금 (원)", "공급가액 (원)", "세액 (원)", "총액 (원)"].map((heading) => (
                   <th key={heading} scope="col" className="font-semibold">{heading}</th>
                 ))}
               </tr>
@@ -194,14 +199,32 @@ export default function RepairRecords() {
                   <td>{record.business_number?.trim() || "-"}</td>
                   <td>{record.card_company?.trim() || "-"}</td>
                   <td>{record.installment_months === null ? "-" : record.installment_months === 0 ? "일시불" : `${record.installment_months}개월`}</td>
+                  <td className="tabular-nums">
+                    {record.monthly_amount === null ? "-" : formatNumber(record.monthly_amount, 2)}
+                    {record.last_installment_amount !== record.monthly_amount && record.last_installment_amount !== null && <p className="mt-1 text-xs text-slate-500">마지막 회차 {formatNumber(record.last_installment_amount, 2)}원</p>}
+                  </td>
+                  <td className="tabular-nums">{formatNumber(record.supply_amount, 2)}</td>
+                  <td className="tabular-nums">{formatNumber(record.vat_amount, 2)}</td>
                   <td className="tabular-nums">{formatNumber(record.total_amount, 2)}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={7}><p role={error ? "alert" : "status"} className={`py-8 ${error ? "text-red-700" : "text-slate-500"}`}>{emptyMessage}</p></td></tr>
+                <tr><td colSpan={10}><p role={error ? "alert" : "status"} className={`py-8 ${error ? "text-red-700" : "text-slate-500"}`}>{emptyMessage}</p></td></tr>
               )}
             </tbody>
           </table>
         </div>
+        {appliedPeriod && !loading && !error && (
+          <section aria-label="수리 월별 합계" aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
+            <p className="text-base font-medium text-slate-600">{appliedPeriod.replace("-", "년 ")}월 · 조회한 전체 기록 합계</p>
+            <dl className="mt-4 space-y-4">
+              <div><dt className="text-base font-medium text-slate-600">공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{formatNumber(totals.supply_amount, 2)}원</dd></div>
+              <div><dt className="text-base font-medium text-slate-600">세액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{formatNumber(totals.vat_amount, 2)}원</dd></div>
+              <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">총액 (부가세 포함)</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.total_amount, 2)}원</dd></div>
+              <div className="border-t border-slate-200 pt-4"><dt className="text-base font-semibold text-slate-700">조회 기록의 월 납입금 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{formatNumber(totals.monthly_amount, 2)}원</dd></div>
+            </dl>
+            <p className="mt-3 text-sm text-slate-500">일시불은 전액, 할부는 회차당 금액입니다. 개월 미입력은 월 납입금에서 제외됩니다. 실제 카드 청구 일정과는 다를 수 있습니다.</p>
+          </section>
+        )}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p aria-live="polite" className="text-sm text-slate-500">
             {appliedPeriod ? `${appliedPeriod.replace("-", "년 ")}월 · 총 ${records.length}건` : "월을 선택해 주세요."}
