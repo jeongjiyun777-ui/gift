@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -644,3 +644,127 @@ def get_urea_report(year: Annotated[int, Query(ge=1, le=9998)], month: Annotated
 @app.get("/diesel-records/report", response_model=PurchaseReportResponse, summary="경유 월별 공급가액·세액·총액 합계")
 def get_diesel_report(year: Annotated[int, Query(ge=1, le=9998)], month: Annotated[int, Query(ge=1, le=12)]):
     return _purchase_report(year, month, "diesel")
+
+
+KOREA_TIMEZONE = timezone(timedelta(hours=9))
+
+
+class RepairRecordCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    repaired_at: datetime | None = Field(default=None, description="수리 날짜(YYYY-MM-DD) 또는 시각. 생략하면 현재 시각, 시간대 생략 시 한국 시간")
+    merchant_name: str = Field(min_length=1, description="상호명/대표자")
+    business_number: str | None = None
+    card_company: str | None = None
+    installment_months: int | None = Field(default=None, strict=True, ge=0, le=2147483647, description="일시불 0, 할부 개월 수, 미입력 null")
+    total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
+
+    @field_validator("business_number", "card_company", mode="before")
+    @classmethod
+    def normalize_optional(cls, value):
+        if isinstance(value, str):
+            return None if value.strip() in ("", "-") else value.strip()
+        return value
+
+    @field_validator("repaired_at", mode="before")
+    @classmethod
+    def normalize_repaired_at(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if not value.strip():
+                return None
+            value = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if not isinstance(value, datetime):
+            raise ValueError("날짜 또는 시각을 입력하세요.")
+        return value.replace(tzinfo=KOREA_TIMEZONE) if value.tzinfo is None else value
+
+
+class RepairRecordResponse(RepairRecordCreate):
+    id: int
+    repaired_at: datetime
+    created_at: datetime
+
+
+@app.post("/repair-records", status_code=201, response_model=RepairRecordResponse, summary="수리 내역 저장")
+def create_repair_record(record: RepairRecordCreate):
+    query = text("""
+        INSERT INTO public.repair_records (
+            repaired_at, merchant_name, business_number, card_company,
+            installment_months, total_amount
+        ) VALUES (
+            COALESCE(:repaired_at, CURRENT_TIMESTAMP), :merchant_name,
+            :business_number, :card_company, :installment_months, :total_amount
+        )
+        RETURNING id, repaired_at, merchant_name, business_number, card_company,
+                  installment_months, total_amount, created_at
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(query, record.model_dump()).mappings().one()
+    return dict(row)
+
+
+@app.get("/repair-records", response_model=list[RepairRecordResponse], summary="수리 내역 연도·월 조회")
+def get_repair_records(
+    year: Annotated[int, Query(ge=1, le=9998)],
+    month: Annotated[int, Query(ge=1, le=12)],
+):
+    start = datetime(year, month, 1, tzinfo=KOREA_TIMEZONE)
+    end = datetime(year + 1, 1, 1, tzinfo=KOREA_TIMEZONE) if month == 12 else datetime(year, month + 1, 1, tzinfo=KOREA_TIMEZONE)
+    query = text("""
+        SELECT id, repaired_at, merchant_name, business_number, card_company,
+               installment_months, total_amount, created_at
+        FROM public.repair_records
+        WHERE repaired_at >= :start AND repaired_at < :end
+        ORDER BY repaired_at, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"start": start, "end": end}).mappings().all()
+    return [dict(row) for row in rows]
+
+
+class RepairRecordUpdate(RepairRecordCreate):
+    merchant_name: str | None = Field(default=None, min_length=1)
+    total_amount: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_changes(self):
+        if not self.model_fields_set:
+            raise ValueError("수정할 항목을 입력하세요.")
+        for field in ("repaired_at", "merchant_name", "total_amount"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} 항목은 비울 수 없습니다.")
+        return self
+
+
+@app.patch("/repair-records/{record_id}", response_model=RepairRecordResponse, summary="수리 내역 부분 수정")
+def update_repair_record(record_id: Annotated[int, Path(gt=0)], changes: RepairRecordUpdate):
+    values = changes.model_dump(exclude_unset=True)
+    # Pydantic 모델에 정의된 고정 열만 UPDATE에 사용합니다.
+    assignments = ", ".join(f"{column} = :{column}" for column in values)
+    query = text(f"""
+        UPDATE public.repair_records SET {assignments} WHERE id=:record_id
+        RETURNING id, repaired_at, merchant_name, business_number, card_company,
+                  installment_months, total_amount, created_at
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(query, {**values, "record_id": record_id}).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="수리 기록이 없습니다.")
+    return dict(row)
+
+
+class RepairRecordDelete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1)
+
+
+@app.post("/repair-records/delete", summary="선택한 수리 내역 삭제")
+def delete_repair_records(selection: RepairRecordDelete):
+    ids = sorted(set(selection.ids))
+    query = text("DELETE FROM public.repair_records WHERE id IN :ids RETURNING id").bindparams(bindparam("ids", expanding=True))
+    with engine.begin() as conn:
+        deleted = conn.execute(query, {"ids": ids}).all()
+        if len(deleted) != len(ids):
+            raise HTTPException(status_code=409, detail="선택한 기록 중 없는 기록이 있습니다. 다시 조회해 주세요.")
+    return {"deleted_count": len(deleted)}

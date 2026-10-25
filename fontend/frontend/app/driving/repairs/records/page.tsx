@@ -1,7 +1,5 @@
-export default function RepairsPage() {
-  return (
-    <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
-      <p className="text-base text-slate-500">서비스 준비중입니다.</p>
-    </section>
-  );
+import RepairRecords from "@/components/RepairRecords";
+
+export default function RepairsRecordsPage() {
+  return <RepairRecords />;
 }
