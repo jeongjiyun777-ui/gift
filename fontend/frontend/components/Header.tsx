@@ -14,6 +14,7 @@ const giftLinks = [
 ] as const;
 
 const drivingLinks = [
+  { href: "/driving/overview", label: "간편보기", icon: "car" },
   { href: "/driving", label: "운행 조회", icon: "car" },
   { href: "/driving/urea/records", label: "요소수 조회", icon: "drop" },
   { href: "/driving/diesel/records", label: "경유 조회", icon: "fuel" },
