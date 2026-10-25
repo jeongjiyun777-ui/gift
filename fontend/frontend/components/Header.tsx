@@ -112,7 +112,7 @@ export default function Header() {
               }`}
             >
               <HeaderIcon icon="gift" />
-              축의금
+              축의금/조의금
               <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -124,7 +124,7 @@ export default function Header() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      aria-label={`축의금 ${link.label}`}
+                      aria-label={`축의금/조의금 ${link.label}`}
                       aria-current={pathname === link.href ? "page" : undefined}
                       onClick={() => setGiftMenuOpen(false)}
                       className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
