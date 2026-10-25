@@ -9,7 +9,7 @@ const fields = [
   { key: "repaired_at", label: "날짜", type: "date" },
   { key: "merchant_name", label: "상호명/대표자", type: "text" },
   { key: "card_company", label: "카드사", type: "text" },
-  { key: "installment_months", label: "할부 개월 (일시불 0)", type: "number" },
+  { key: "installment_months", label: "할부 개월", type: "number" },
   { key: "total_amount", label: "총액 (원)", type: "number" },
 ] as const;
 
@@ -42,8 +42,8 @@ export default function RepairRecordEditor({ record, onClose, onSaved }: {
         setError("날짜, 상호명, 총액은 비울 수 없습니다."); return;
       }
       if (key === "installment_months") {
-        if (value && (!/^\d+$/.test(value) || Number(value) > 2147483647)) {
-          setError("할부 개월은 0 이상의 정수로 입력해 주세요."); return;
+        if (value && (!/^\d+$/.test(value) || Number(value) > 12)) {
+          setError("일시불 또는 1~12개월을 선택해 주세요."); return;
         }
         changes[key] = value ? Number(value) : null;
       } else {
@@ -84,10 +84,16 @@ export default function RepairRecordEditor({ record, onClose, onSaved }: {
         {fields.map(({ key, label, type }) => (
           <div key={key}>
             <label htmlFor={`repair-edit-${key}`} className="mb-1 block text-sm font-semibold">{label}</label>
-            <input id={`repair-edit-${key}`} type={type} value={values[key]}
-              required={key !== "card_company" && key !== "installment_months"} min={type === "number" ? "0" : undefined}
-              step={key === "installment_months" ? "1" : type === "number" ? "0.01" : undefined}
-              onChange={(event) => setValues((previous) => ({ ...previous, [key]: event.target.value }))} className={inputClass} />
+            {key === "installment_months" ? (
+              <select id={`repair-edit-${key}`} value={values[key]} onChange={(event) => setValues((previous) => ({ ...previous, [key]: event.target.value }))} className={inputClass}>
+                <option value="">미입력</option>
+                <option value="0">일시불</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => <option key={month} value={String(month)}>{month}개월</option>)}
+              </select>
+            ) : (
+              <input id={`repair-edit-${key}`} type={type} value={values[key]} required={key !== "card_company"} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined}
+                onChange={(event) => setValues((previous) => ({ ...previous, [key]: event.target.value }))} className={inputClass} />
+            )}
           </div>
         ))}
         <fieldset className="min-w-0">

@@ -71,7 +71,11 @@ export default function RepairsPage() {
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <label htmlFor="repair-months" className="mb-2 block font-semibold">할부 개월</label>
-            <input id="repair-months" type="number" inputMode="numeric" min="0" max="2147483647" step="1" value={form.installment_months} onChange={(event) => updateField("installment_months", event.target.value)} placeholder="일시불은 0 입력" className={INPUT_CLASS} />
+            <select id="repair-months" value={form.installment_months} onChange={(event) => updateField("installment_months", event.target.value)} className={INPUT_CLASS}>
+              <option value="">개월 수를 선택해 주세요</option>
+              <option value="0">일시불</option>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => <option key={month} value={String(month)}>{month}개월</option>)}
+            </select>
           </div>
           <div>
             <label htmlFor="repair-total" className="mb-2 block font-semibold">총액 (원)</label>
