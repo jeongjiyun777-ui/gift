@@ -656,7 +656,7 @@ class RepairRecordCreate(BaseModel):
     merchant_name: str = Field(min_length=1, description="상호명/대표자")
     business_number: str | None = None
     card_company: str | None = None
-    installment_months: int | None = Field(default=None, strict=True, ge=0, le=2147483647, description="일시불 0, 할부 개월 수, 미입력 null")
+    installment_months: int | None = Field(default=None, strict=True, ge=0, le=12, description="일시불 0, 할부 1~12개월, 미입력 null")
     total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2, allow_inf_nan=False)
 
     @field_validator("business_number", "card_company", mode="before")

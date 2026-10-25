@@ -18,7 +18,7 @@ class RepairTests(unittest.TestCase):
         self.assertIsNone(record.card_company)
 
     def test_invalid_fields_are_rejected(self):
-        for change in [{"merchant_name":" "}, {"total_amount":"-1"}, {"total_amount":"1.001"}, {"total_amount":"NaN"}, {"installment_months":-1}, {"installment_months":1.5}, {"repaired_at":"2026-02-30"}, {"repaired_at":1234}]:
+        for change in [{"merchant_name":" "}, {"total_amount":"-1"}, {"total_amount":"1.001"}, {"total_amount":"NaN"}, {"installment_months":-1}, {"installment_months":1.5}, {"installment_months":13}, {"repaired_at":"2026-02-30"}, {"repaired_at":1234}]:
             with self.subTest(change=change), self.assertRaises(ValidationError):
                 main.RepairRecordCreate(**({"merchant_name":"정비소", "total_amount":"100"} | change))
 
