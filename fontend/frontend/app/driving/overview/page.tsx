@@ -24,6 +24,9 @@ interface DrivingOverview {
   input_vat_amount: string;
   output_vat_amount: string;
   vat_balance_amount: string;
+  driving_total_amount: string;
+  income_tax_estimate: string;
+  expense_tax_estimate: string;
 }
 
 function money(value: string) {
@@ -83,7 +86,7 @@ export default function DrivingOverviewPage() {
   return (
     <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">간편보기</h1>
-      <p className="mt-2 text-sm text-slate-500">운행 공급가액에서 요소수·경유·수리 공급가액을 뺀 금액을 확인해 보세요.</p>
+      <p className="mt-2 text-sm text-slate-500">선택한 달의 수익금과 지출, 총액의 10%로 계산한 금액을 확인해 보세요.</p>
       <form onSubmit={handleSearch} className="mt-7 flex flex-wrap items-center justify-end gap-3" aria-busy={loading}>
         <label htmlFor="overview-period" className="font-semibold">날짜 선택</label>
         <input id="overview-period" type="month" required min="0001-01" max="9998-12" value={period} onChange={(event) => changePeriod(event.target.value)} className="max-w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
@@ -92,36 +95,36 @@ export default function DrivingOverviewPage() {
       {error && <p role="alert" className="mt-5 rounded-lg bg-red-50 px-4 py-3 text-red-700">{error}</p>}
       {!overview && !error && <p role="status" className="mt-7 py-8 text-center text-slate-500">{loading ? "조회 중..." : "월을 선택한 뒤 그 달 조회하기를 눌러 주세요."}</p>}
       {overview && (
-        <section aria-label="월별 수입 지출 합계" aria-live="polite" className="mt-7 rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
-          <p className="text-base font-medium text-slate-600">{overview.year}년 {overview.month}월 · 전체 기록 합계</p>
-          <dl className="mt-5 space-y-5">
-            <div><dt className="text-base font-semibold text-slate-700">운행 공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{money(overview.driving_supply_amount)}</dd></div>
-            {([
-              ["요소수 공급가액", overview.urea_supply_amount],
-              ["경유 공급가액", overview.diesel_supply_amount],
-              ["수리 공급가액", overview.repair_supply_amount],
-            ] as const).map(([label, value]) => <div key={label}><dt className="text-base font-medium text-slate-600">{label}</dt><dd className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{money(value)}</dd></div>)}
-            <div className="border-t border-slate-200 pt-5"><dt className="text-base font-semibold text-slate-700">지출 공급가액 합계</dt><dd className="mt-1 text-2xl font-bold tabular-nums text-red-700 sm:text-3xl">{money(overview.expense_supply_amount)}</dd></div>
-            <div className="border-t border-slate-200 pt-5"><dt className="text-lg font-bold text-slate-700">공급가액 기준 남은 금액</dt><dd className={`mt-2 text-3xl font-bold tabular-nums sm:text-4xl ${overview.balance_amount.startsWith("-") ? "text-red-700" : "text-blue-700"}`}>{money(overview.balance_amount)}</dd></div>
-          </dl>
-          <p className="mt-5 text-sm text-slate-500">각 기록의 날짜 기준입니다. 수리비는 할부 개월과 관계없이 해당 월 수리 내역의 공급가액을 차감합니다.</p>
-        </section>
-      )}
-      {overview && (
-        <section aria-label="월별 세액 계산" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
-          <p className="text-lg font-bold text-slate-700">{overview.year}년 {overview.month}월 · 세액 계산</p>
-          <div className="mt-5 space-y-5">
-            {([
-              ["요소수 세액", overview.urea_vat_amount],
-              ["경유 세액", overview.diesel_vat_amount],
-              ["수리 세액", overview.repair_vat_amount],
-            ] as const).map(([label, value]) => <div key={label}><p className="text-base text-slate-600">{label}</p><p className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{money(value)}</p></div>)}
-            <div className="border-t border-slate-200 pt-5"><p className="text-base font-semibold text-slate-700">지출 세액 합계 (매입세액)</p><p className="mt-1 text-2xl font-bold tabular-nums text-blue-700 sm:text-3xl">{money(overview.input_vat_amount)}</p></div>
-            <div><p className="text-base font-semibold text-slate-700">운행 세액 (매출세액 · 공급가액의 10%)</p><p className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{money(overview.output_vat_amount)}</p></div>
-            <div className="border-t border-slate-200 pt-5"><p className="text-lg font-bold text-slate-700">이번 달 납부 예상 세액 (매출세액 − 매입세액)</p><p className="mt-2 text-3xl font-bold tabular-nums text-blue-700 sm:text-4xl">{money(overview.vat_balance_amount)}</p></div>
-          </div>
-          <p className="mt-5 text-sm text-slate-500">등록된 내역을 기준으로 계산한 예상 금액입니다. 음수는 매입세액이 매출세액보다 큰 경우입니다.</p>
-        </section>
+        <div aria-live="polite" className="mt-7 space-y-5">
+          <p className="text-right text-base font-medium text-slate-600">{overview.year}년 {overview.month}월 · 전체 기록 합계</p>
+          <section aria-label="수익금" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
+            <p className="text-lg font-bold text-slate-700">수익금</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-blue-700 sm:text-4xl">{money(overview.driving_total_amount)}</p>
+            <p className="mt-3 text-sm text-slate-500">운행 합계금액 · 세금 포함</p>
+          </section>
+          <section aria-label="지출" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
+            <p className="text-lg font-bold text-slate-700">지출</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-red-700 sm:text-4xl">{money(overview.expense_total_amount)}</p>
+            <div className="mt-5 space-y-3 border-t border-slate-200 pt-4">
+              {([
+                ["수리비", overview.repair_total_amount],
+                ["요소수", overview.urea_total_amount],
+                ["경유", overview.diesel_total_amount],
+              ] as const).map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-3"><p className="text-base text-slate-600">{label}</p><p className="text-lg font-semibold tabular-nums">{money(value)}</p></div>)}
+            </div>
+            <p className="mt-3 text-sm text-slate-500">세금 포함 총액 · 수리비는 해당 월 수리 내역의 총액 기준</p>
+          </section>
+          <section aria-label="낼 세금" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
+            <p className="text-lg font-bold text-slate-700">낼 세금</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums sm:text-4xl">{money(overview.income_tax_estimate)}</p>
+            <p className="mt-3 text-sm text-slate-500">사용자 지정 계산 · 운행 세금 포함 총액 × 10%</p>
+          </section>
+          <section aria-label="환급 세액" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
+            <p className="text-lg font-bold text-slate-700">환급 세액</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-blue-700 sm:text-4xl">{money(overview.expense_tax_estimate)}</p>
+            <p className="mt-3 text-sm text-slate-500">사용자 지정 계산 · 수리비·요소수·경유 총액 합계 × 10%</p>
+          </section>
+        </div>
       )}
     </section>
   );

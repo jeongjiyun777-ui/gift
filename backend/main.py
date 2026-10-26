@@ -838,6 +838,9 @@ class DrivingOverviewResponse(BaseModel):
     input_vat_amount: Decimal
     output_vat_amount: Decimal
     vat_balance_amount: Decimal
+    driving_total_amount: Decimal
+    income_tax_estimate: Decimal
+    expense_tax_estimate: Decimal
 
 
 @app.get("/driving-overview", response_model=DrivingOverviewResponse, summary="월별 공급가액 수입·지출 및 매출·매입 세액 계산")
@@ -890,4 +893,8 @@ def get_driving_overview(
             "expense_supply_amount": supply_expenses,
             "balance_amount": amounts["driving_supply_amount"] - supply_expenses,
             "input_vat_amount": input_vat,
-            "vat_balance_amount": amounts["output_vat_amount"] - input_vat}
+            "vat_balance_amount": amounts["output_vat_amount"] - input_vat,
+            "driving_total_amount": amounts["driving_supply_amount"] + amounts["output_vat_amount"],
+            # 간편보기의 사용자 지정 총액 10% 계산. 기존 부가세 필드와 구분합니다.
+            "income_tax_estimate": ((amounts["driving_supply_amount"] + amounts["output_vat_amount"]) * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+            "expense_tax_estimate": (expenses * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)}

@@ -78,3 +78,18 @@ class DrivingOverviewTests(unittest.TestCase):
         result=main.get_driving_overview(2026,7)
         self.assertEqual(result['input_vat_amount'],Decimal('10000'))
         self.assertEqual(result['vat_balance_amount'],Decimal('-10000'))
+
+
+    def test_custom_ten_percent_uses_gross_totals(self):
+        result=main.get_driving_overview(2026,10)
+        self.assertEqual(result['driving_total_amount'],Decimal('330000'))
+        self.assertEqual(result['income_tax_estimate'],Decimal('33000'))
+        self.assertEqual(result['expense_tax_estimate'],Decimal('16000'))
+        self.assertEqual(result['output_vat_amount'],Decimal('30000'))
+        self.assertEqual(result['input_vat_amount'],Decimal('14544'))
+
+    def test_custom_ten_percent_rounds_half_up(self):
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO public.diesel_records VALUES ('2026-06-01',105)"))
+        result=main.get_driving_overview(2026,6)
+        self.assertEqual(result['expense_tax_estimate'],Decimal('11'))
