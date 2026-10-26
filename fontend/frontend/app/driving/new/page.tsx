@@ -43,7 +43,7 @@ export default function NewDrivingPage() {
     }
     const amount = Number(chargeAmount);
     if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
-      setError("화주를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
+      setError("운송사(화주)를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
       return;
     }
     setSaving(true);
@@ -73,24 +73,24 @@ export default function NewDrivingPage() {
   return (
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록 입력</h1>
-        <p className="mt-2 text-sm text-slate-500">화주를 선택한 뒤 출발지와 도착지를 직접 입력해 주세요.</p>
+        <p className="mt-2 text-sm text-slate-500">운송사(화주)를 선택한 뒤 출발지와 도착지를 직접 입력해 주세요.</p>
         <form onSubmit={handleSubmit} className="mt-7">
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
-            <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
+            <label htmlFor="driving-shipper" className="mb-2 block font-semibold">운송사(화주)</label>
             <select id="driving-shipper" required value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
-              <option value="">화주 선택</option>
+              <option value="">운송사(화주) 선택</option>
               {shippers.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="driving-origin" className="mb-2 block font-semibold">출발지</label>
-              <input id="driving-origin" required disabled={!shipper} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={shipper ? "출발지를 입력해 주세요" : "화주를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-origin" required disabled={!shipper} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={shipper ? "출발지를 입력해 주세요" : "운송사(화주)를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
             <div>
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
-              <input id="driving-destination" required disabled={!shipper} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={shipper ? "도착지를 입력해 주세요" : "화주를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-destination" required disabled={!shipper} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={shipper ? "도착지를 입력해 주세요" : "운송사(화주)를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
           </div>
           <div>
@@ -100,7 +100,7 @@ export default function NewDrivingPage() {
           </div>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
-              {shipperName || "화주 입력 중"} · {origin} → {destination}
+              {shipperName || "운송사(화주) 입력 중"} · {origin} → {destination}
             </p>
           )}
           <div>
