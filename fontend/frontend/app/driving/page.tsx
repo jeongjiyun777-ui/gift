@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
 import { DRIVING_API_URL as API_URL, fetchDrivingRecords, fetchDrivingReport, type DrivingRecord, type DrivingTotals } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["일자", "구분", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
+const columns = ["일자", "구분", "운송사(화주)", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
