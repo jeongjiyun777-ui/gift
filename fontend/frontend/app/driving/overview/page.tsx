@@ -3,38 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+import { parseDrivingOverview, formatOverviewMoney as money, type DrivingOverview } from "@/lib/drivingOverview";
 
-interface DrivingOverview {
-  year: number;
-  month: number;
-  driving_supply_amount: string;
-  urea_total_amount: string;
-  diesel_total_amount: string;
-  repair_total_amount: string;
-  expense_total_amount: string;
-  balance_amount: string;
-  urea_supply_amount: string;
-  diesel_supply_amount: string;
-  repair_supply_amount: string;
-  urea_vat_amount: string;
-  diesel_vat_amount: string;
-  repair_vat_amount: string;
-  expense_supply_amount: string;
-  input_vat_amount: string;
-  output_vat_amount: string;
-  vat_balance_amount: string;
-  driving_total_amount: string;
-  income_tax_estimate: string;
-  expense_tax_estimate: string;
-}
-
-function money(value: string) {
-  const negative = value.startsWith("-");
-  const [integer, fraction = ""] = value.replace(/^-/, "").split(".");
-  const decimals = fraction.replace(/0+$/, "");
-  return `${negative ? "-" : ""}${BigInt(integer).toLocaleString("ko-KR")}${decimals ? `.${decimals}` : ""}원`;
-}
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "https://gift-jdcu.onrender.com").replace(/\/$/, "");
 
 export default function DrivingOverviewPage() {
   const [period, setPeriod] = useState("");
@@ -70,11 +41,11 @@ export default function DrivingOverviewPage() {
     try {
       const params = new URLSearchParams({ year: String(year), month: String(month) });
       const response = await fetch(`${API_URL}/driving-overview?${params}`, { cache: "no-store", signal: controller.signal });
-      if (!response.ok) throw new Error("조회 실패");
-      const data: DrivingOverview = await response.json();
+      if (!response.ok) throw new Error(response.status === 404 ? "간편보기 API가 없습니다. 백엔드 배포 상태를 확인해 주세요." : "조회하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      const data = parseDrivingOverview(await response.json());
       if (!controller.signal.aborted) setOverview(data);
-    } catch {
-      if (!controller.signal.aborted) setError("조회하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "조회하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;
@@ -96,6 +67,7 @@ export default function DrivingOverviewPage() {
       {!overview && !error && <p role="status" className="mt-7 py-8 text-center text-slate-500">{loading ? "조회 중..." : "월을 선택한 뒤 그 달 조회하기를 눌러 주세요."}</p>}
       {overview && (
         <div aria-live="polite" className="mt-7 space-y-5">
+          {(overview.driving_total_amount === null || overview.income_tax_estimate === null || overview.expense_tax_estimate === null) && <p role="status" className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">서버에 최신 계산 항목이 아직 반영되지 않았습니다. 백엔드 배포 후 다시 조회해 주세요. 미반영 금액은 -로 표시합니다.</p>}
           <p className="text-right text-base font-medium text-slate-600">{overview.year}년 {overview.month}월 · 전체 기록 합계</p>
           <section aria-label="수익금" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-5 text-right">
             <p className="text-lg font-bold text-slate-700">수익금</p>

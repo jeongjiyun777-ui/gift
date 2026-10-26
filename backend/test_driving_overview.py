@@ -93,3 +93,18 @@ class DrivingOverviewTests(unittest.TestCase):
             conn.execute(text("INSERT INTO public.diesel_records VALUES ('2026-06-01',105)"))
         result=main.get_driving_overview(2026,6)
         self.assertEqual(result['expense_tax_estimate'],Decimal('11'))
+
+
+    def test_frontend_contract_has_decimal_strings_for_all_four_sections(self):
+        payload = main.DrivingOverviewResponse(**main.get_driving_overview(2026,10)).model_dump(mode='json')
+        expected = {
+            'driving_total_amount':Decimal('330000'),
+            'expense_total_amount':Decimal('160000'),
+            'income_tax_estimate':Decimal('33000'),
+            'expense_tax_estimate':Decimal('16000'),
+        }
+        for field, value in expected.items():
+            with self.subTest(field=field):
+                self.assertIsInstance(payload[field],str)
+                self.assertEqual(Decimal(payload[field]),value)
+        self.assertIn('/driving-overview',main.app.openapi()['paths'])
