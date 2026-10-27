@@ -1,5 +1,6 @@
 import os
-from datetime import date, datetime, timedelta, timezone
+import re
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated, Literal
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -69,6 +70,24 @@ def get_gifts(
     return [dict(row) for row in rows]
 
 
+def normalize_driving_time(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if value in ("", "-"):
+            return None
+        if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9](?::00)?", value):
+            raise ValueError("시각은 00:00~23:59 범위의 시·분으로 입력하세요.")
+        try:
+            value = time.fromisoformat(value)
+        except ValueError:
+            raise ValueError("시각은 HH:MM 형식으로 입력하세요.") from None
+    if not isinstance(value, time) or value.tzinfo is not None or value.second or value.microsecond:
+        raise ValueError("시각은 00:00~23:59 범위의 시·분으로 입력하세요.")
+    return value
+
+
 class DrivingRecordUpdate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -76,6 +95,8 @@ class DrivingRecordUpdate(BaseModel):
     category: str | None = None
     carrier_name: str | None = Field(default=None, min_length=1)
     shipper_name: str | None = None
+    departure_time: time | None = None
+    arrival_time: time | None = None
     region_1: str | None = None
     region_2: str | None = None
     shipping_line: str | None = None
@@ -88,6 +109,11 @@ class DrivingRecordUpdate(BaseModel):
     memo: str | None = None
     vehicle_number: str | None = None
     recipient_name: str | None = None
+
+    @field_validator("departure_time", "arrival_time", mode="before")
+    @classmethod
+    def validate_times(cls, value):
+        return normalize_driving_time(value)
 
     @field_validator("shipper_name", mode="before")
     @classmethod
@@ -118,7 +144,7 @@ def update_driving_record(
         UPDATE public.driving_records SET {assignments}
         WHERE id = :record_id
         RETURNING id, operated_on, category, carrier_name, shipper_name,
-                  region_1, region_2, shipping_line, container_spec,
+                  region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
                   vehicle_number, recipient_name, start_km, km, created_at
     """)
@@ -276,6 +302,8 @@ class DrivingRecordCreate(BaseModel):
     operated_on: date | None = None
     carrier_name: str = Field(min_length=1)
     shipper_name: str | None = None
+    departure_time: time | None = None
+    arrival_time: time | None = None
     region_1: str | None = None
     region_2: str | None = None
     category: str | None = None
@@ -290,6 +318,11 @@ class DrivingRecordCreate(BaseModel):
     vehicle_number: str | None = None
     recipient_name: str | None = None
 
+    @field_validator("departure_time", "arrival_time", mode="before")
+    @classmethod
+    def validate_times(cls, value):
+        return normalize_driving_time(value)
+
     @field_validator("shipper_name", mode="before")
     @classmethod
     def normalize_shipper(cls, value):
@@ -302,17 +335,17 @@ class DrivingRecordCreate(BaseModel):
 def create_driving_record(record: DrivingRecordCreate):
     query = text("""
         INSERT INTO public.driving_records (
-            operated_on, carrier_name, shipper_name, region_1, region_2, category,
+            operated_on, carrier_name, shipper_name, region_1, region_2, departure_time, arrival_time, category,
             shipping_line, container_spec, container_no, charge_amount,
             tax_amount, memo, vehicle_number, recipient_name, start_km, km
         ) VALUES (
             COALESCE(:operated_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
-            :carrier_name, :shipper_name, :region_1, :region_2, :category,
+            :carrier_name, :shipper_name, :region_1, :region_2, :departure_time, :arrival_time, :category,
             :shipping_line, :container_spec, :container_no, :charge_amount,
             :tax_amount, :memo, :vehicle_number, :recipient_name, :start_km, :km
         )
         RETURNING id, operated_on, category, carrier_name, shipper_name,
-                  region_1, region_2, shipping_line, container_spec,
+                  region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
                   vehicle_number, recipient_name, start_km, km, created_at
     """)
@@ -350,7 +383,7 @@ def get_driving_records(
         period_filter = "WHERE operated_on >= :start_date AND operated_on < :end_date"
     query = text(f"""
         SELECT id, operated_on, category, carrier_name, shipper_name,
-               region_1, region_2, shipping_line, container_spec,
+               region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                container_no, charge_amount, tax_amount, memo,
                vehicle_number, recipient_name, start_km, km, created_at
         FROM public.driving_records

@@ -7,6 +7,8 @@ export interface DrivingRecord {
   region_1: string | null;
   region_2: string | null;
   shipping_line: string | null;
+  departure_time: string | null;
+  arrival_time: string | null;
   start_km: number | null;
   km: number | null;
   container_spec: string | null;

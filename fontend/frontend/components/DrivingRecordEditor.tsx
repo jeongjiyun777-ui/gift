@@ -1,5 +1,6 @@
 "use client";
 
+import DrivingTimeSelect from "./DrivingTimeSelect";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { DRIVING_API_URL, isValidKm, type DrivingRecord } from "../lib/drivingRecords";
@@ -12,6 +13,8 @@ const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "shipper_name", label: "화주" },
   { key: "region_1", label: "지역 (출발지)" },
   { key: "region_2", label: "지역 (도착지)" },
+  { key: "departure_time", label: "출발시각" },
+  { key: "arrival_time", label: "도착시각" },
   { key: "start_km", label: "시작 지점 → 출발지 (km)" },
   { key: "km", label: "출발지 → 도착지 (km)" },
   { key: "shipping_line", label: "라인" },
@@ -25,7 +28,7 @@ const fields: { key: EditableField; label: string; type?: string }[] = [
 ];
 
 function formValues(record: DrivingRecord) {
-  return Object.fromEntries(fields.map(({ key }) => [key, String(record[key] ?? "")])) as Record<EditableField, string>;
+  return Object.fromEntries(fields.map(({ key }) => [key, (key === "departure_time" || key === "arrival_time") ? (record[key]?.slice(0, 5) ?? "") : String(record[key] ?? "")])) as Record<EditableField, string>;
 }
 
 export default function DrivingRecordEditor({ record, onClose, onSaved }: {
@@ -43,7 +46,12 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
     for (const { key, type } of fields) {
       const value = values[key].trim();
       if (value === original[key].trim()) continue;
-      if ((key === "km" || key === "start_km")) {
+      if (key === "departure_time" || key === "arrival_time") {
+        if (value.replace(":", "") && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+          setError("시각의 시·분을 모두 선택해 주세요."); return;
+        }
+        changes[key] = value.replace(":", "") ? value : null;
+      } else if ((key === "km" || key === "start_km")) {
         if (!isValidKm(value)) { setError("운행거리는 1~999km의 정수로 입력해 주세요."); return; }
         changes[key] = Number(value);
       } else if (type === "number" && value !== "") {
@@ -79,6 +87,7 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
       <p className="mt-1 text-sm text-slate-600">변경한 항목만 저장합니다. 번호와 등록 시각은 유지됩니다.</p>
       <fieldset disabled={saving} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-60">
         {fields.map(({ key, label, type }) => (
+          key === "departure_time" || key === "arrival_time" ? <DrivingTimeSelect key={key} id={`edit-${key}`} label={label} value={values[key]} onChange={(value) => setValues((previous) => ({ ...previous, [key]: value }))} /> :
           <div key={key}>
             <label htmlFor={`edit-${key}`} className="mb-1 block text-sm font-semibold">{label}</label>
             <input id={`edit-${key}`} type={type ?? "text"} value={values[key]}

@@ -2,7 +2,7 @@
 import os
 import sqlite3
 import unittest
-from datetime import date
+from datetime import date, time
 from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
 sqlite3.register_adapter(date, lambda value: value.isoformat())
+sqlite3.register_adapter(time, lambda value: value.isoformat())
 
 with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
     import main
@@ -27,6 +28,7 @@ class DrivingRecordTests(unittest.TestCase):
             conn.execute(text("""
                 CREATE TABLE public.driving_records (
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
+                    departure_time TEXT, arrival_time TEXT,
                     category TEXT, carrier_name TEXT NOT NULL, shipper_name TEXT,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
                     start_km INTEGER CHECK (start_km BETWEEN 1 AND 999),
@@ -207,6 +209,24 @@ class DrivingRecordTests(unittest.TestCase):
         for value in [0,-1,1000,1.5,True,"12",None]:
             with self.subTest(value=value),self.assertRaises(ValidationError):
                 main.DrivingRecordCreate(carrier_name="직접입력 운송사",charge_amount=100,start_km=value,km=125)
+
+
+    def test_departure_and_arrival_times_round_trip_and_clear(self):
+        row=main.update_driving_record(1, main.DrivingRecordUpdate(departure_time="23:59",arrival_time="00:05"))
+        self.assertEqual(row['departure_time'],'23:59:00')
+        self.assertEqual(row['arrival_time'],'00:05:00')
+        rows=main.get_driving_records(2026,9)
+        self.assertEqual(rows[0]['departure_time'],'23:59:00')
+        cleared=main.update_driving_record(1,main.DrivingRecordUpdate(arrival_time=None))
+        self.assertIsNone(cleared['arrival_time'])
+        self.assertEqual(cleared['departure_time'],'23:59:00')
+
+    def test_time_validation_and_midnight(self):
+        record=main.DrivingRecordCreate(carrier_name="운송사",start_km=1,km=2,charge_amount=100,departure_time="00:00",arrival_time="23:59")
+        self.assertEqual(record.departure_time,time(0,0))
+        for value in ['24:00','12:60','12:30:01','12:30+09:00',1234,True]:
+            with self.subTest(value=value),self.assertRaises(ValidationError):
+                main.DrivingRecordUpdate(departure_time=value)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS public.driving_records (
     region_1 TEXT,
     region_2 TEXT,
     shipping_line TEXT,
+    departure_time TIME WITHOUT TIME ZONE,
+    arrival_time TIME WITHOUT TIME ZONE,
     start_km INTEGER CONSTRAINT driving_records_start_km_range CHECK (start_km BETWEEN 1 AND 999),
     km INTEGER CONSTRAINT driving_records_km_range CHECK (km BETWEEN 1 AND 999),
     container_spec TEXT,
@@ -128,3 +130,6 @@ COMMENT ON COLUMN public.repair_records.total_amount IS '수리 총액 (원)';
 
 CREATE INDEX IF NOT EXISTS repair_records_repaired_at_id_idx
     ON public.repair_records (repaired_at, id);
+
+COMMENT ON COLUMN public.driving_records.departure_time IS '출발시각 (한국 현지 시·분). 미입력 NULL';
+COMMENT ON COLUMN public.driving_records.arrival_time IS '도착시각 (한국 현지 시·분). 미입력 NULL';

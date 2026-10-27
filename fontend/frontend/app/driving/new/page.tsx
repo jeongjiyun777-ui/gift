@@ -1,5 +1,6 @@
 "use client";
 
+import DrivingTimeSelect from "@/components/DrivingTimeSelect";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -30,6 +31,8 @@ export default function NewDrivingPage() {
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
+  const [departureTime, setDepartureTime] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
   const [startKm, setStartKm] = useState("");
   const [km, setKm] = useState("");
   const carrierName = (carrier === "custom" ? "" : carrier === "custom-confirmed" ? confirmedCarrier : carrier).trim();
@@ -70,6 +73,12 @@ export default function NewDrivingPage() {
       setError("각 구간의 운행거리는 1~999km의 정수로 입력해 주세요.");
       return;
     }
+    for (const value of [departureTime, arrivalTime]) {
+      if (value.replace(":", "") && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+        setError("출발시각과 도착시각의 시·분을 모두 선택해 주세요.");
+        return;
+      }
+    }
     const amount = Number(chargeAmount);
     if (!carrierName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
       setError("운송사를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
@@ -85,6 +94,8 @@ export default function NewDrivingPage() {
           shipper_name: shipperName.trim() || null,
           region_1: origin.trim(),
           region_2: destination.trim(),
+          departure_time: departureTime.replace(":", "") ? departureTime : null,
+          arrival_time: arrivalTime.replace(":", "") ? arrivalTime : null,
           start_km: Number(startKm),
           km: Number(km),
           container_spec: CONTAINER_SPEC,
@@ -143,6 +154,10 @@ export default function NewDrivingPage() {
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
               <input id="driving-destination" required disabled={!carrierName} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={carrierName ? "도착지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <DrivingTimeSelect id="driving-departure" label="출발시각" value={departureTime} onChange={setDepartureTime} />
+            <DrivingTimeSelect id="driving-arrival" label="도착시각" value={arrivalTime} onChange={setArrivalTime} />
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
