@@ -14,7 +14,7 @@ export default function GiftForm({ direction }: { direction: "received" | "paid"
   const router = useRouter();
   const savingRef = useRef(false);
   const label = direction === "paid" ? "지출금액" : "받은 금액";
-  const listHref = direction === "paid" ? "/gifts/paid" : "/";
+  const listHref = direction === "paid" ? "/gifts/paid" : "/gifts/received";
   const [name, setName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [paidOn, setPaidOn] = useState<string>("");

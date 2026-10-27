@@ -1,5 +1,5 @@
-import GiftList from "@/components/GiftList";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <GiftList direction="received" />;
+  redirect("/driving");
 }
