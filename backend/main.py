@@ -10,6 +10,8 @@ from sqlalchemy import bindparam, create_engine, text
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from urea_ocr import UreaReceiptImage, UreaReceiptResponse, recognize_urea_receipt
 
+from repair_ocr import RepairReceiptResponse, recognize_repair_receipt
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
@@ -914,3 +916,8 @@ def get_driving_overview(
             # 간편보기의 사용자 지정 총액 10% 계산. 기존 부가세 필드와 구분합니다.
             "income_tax_estimate": ((amounts["driving_supply_amount"] + amounts["output_vat_amount"]) * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
             "expense_tax_estimate": (expenses * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)}
+
+
+@app.post("/repair-records/ocr", response_model=RepairReceiptResponse, summary="수리 영수증 여섯 항목 인식 (저장 안 함)")
+def read_repair_receipt(image: UreaReceiptImage):
+    return recognize_repair_receipt(image)
