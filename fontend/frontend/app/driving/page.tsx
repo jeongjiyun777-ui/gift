@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
 import { DRIVING_API_URL as API_URL, fetchDrivingRecords, fetchDrivingReport, type DrivingRecord, type DrivingTotals } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["일자", "구분", "운송사", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
+const columns = ["일자", "구분", "운송사", "화주", "지역", "지역", "시작 → 출발지 (km)", "출발지 → 도착지 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
@@ -241,7 +241,8 @@ export default function DrivingPage() {
                   <td>{record.shipper_name?.trim() || "-"}</td>
                   <td>{displayText(record.region_1)}</td>
                   <td>{displayText(record.region_2)}</td>
-                  <td className="text-center tabular-nums">{record.km == null ? "—" : record.km.toLocaleString("ko-KR")}</td>
+                  <td className="text-center tabular-nums">{record.start_km == null ? "-" : record.start_km.toLocaleString("ko-KR")}</td>
+                  <td className="text-center tabular-nums">{record.km == null ? "-" : record.km.toLocaleString("ko-KR")}</td>
                   <td>{displayText(record.shipping_line)}</td>
                   <td className="text-center">{displayText(record.container_spec)}</td>
                   <td className="whitespace-nowrap font-mono">{displayText(record.container_no)}</td>

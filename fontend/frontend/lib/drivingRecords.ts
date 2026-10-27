@@ -7,6 +7,7 @@ export interface DrivingRecord {
   region_1: string | null;
   region_2: string | null;
   shipping_line: string | null;
+  start_km: number | null;
   km: number | null;
   container_spec: string | null;
   container_no: string | null;
@@ -39,7 +40,7 @@ export async function fetchDrivingRecords(year: string, month: string, signal?: 
 }
 
 export function isValidKm(value: string): boolean {
-  return /^[1-9][0-9]{0,3}$/.test(value.trim());
+  return /^[1-9][0-9]{0,2}$/.test(value.trim());
 }
 
 

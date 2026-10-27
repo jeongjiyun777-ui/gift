@@ -29,7 +29,8 @@ class DrivingRecordTests(unittest.TestCase):
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
                     category TEXT, carrier_name TEXT NOT NULL, shipper_name TEXT,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
-                    km INTEGER CHECK (km BETWEEN 1 AND 9999),
+                    start_km INTEGER CHECK (start_km BETWEEN 1 AND 999),
+                    km INTEGER CHECK (km BETWEEN 1 AND 999),
                     container_spec TEXT, container_no TEXT,
                     charge_amount BIGINT NOT NULL, tax_amount BIGINT,
                     memo TEXT, vehicle_number TEXT, recipient_name TEXT,
@@ -114,7 +115,7 @@ class DrivingRecordTests(unittest.TestCase):
         self.assertEqual(len(main.get_driving_records(2026, 10)), 2)
 
     def test_km_boundaries_and_partial_update(self):
-        for km in [1, 9999]:
+        for km in [1, 999]:
             with self.subTest(km=km):
                 result = main.update_driving_record(1, main.DrivingRecordUpdate(km=km))
                 self.assertEqual(result["km"], km)
@@ -123,23 +124,23 @@ class DrivingRecordTests(unittest.TestCase):
         self.assertIsNone(rows[1]["km"])
 
     def test_km_rejects_invalid_api_values(self):
-        for km in [0, -1, 10000, 1.5, "12", True, None]:
+        for km in [0, -1, 1000, 1.5, "12", True, None]:
             with self.subTest(km=km), self.assertRaises(ValidationError):
                 main.DrivingRecordUpdate(km=km)
-        for km in [1, 9999]:
-            self.assertEqual(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=km).km, km)
+        for km in [1, 999]:
+            self.assertEqual(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, start_km=25, km=km).km, km)
         with self.assertRaises(ValidationError):
             main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100)
-        for km in [0, -1, 10000, 1.5, "12", True, None]:
+        for km in [0, -1, 1000, 1.5, "12", True, None]:
             with self.subTest(create_km=km), self.assertRaises(ValidationError):
-                main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=km)
+                main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, start_km=25, km=km)
 
     def test_create_passes_km_to_insert_and_response(self):
         fake_engine = MagicMock()
         connection = fake_engine.begin.return_value.__enter__.return_value
         connection.execute.return_value.mappings.return_value.one.return_value = {"id": 3, "km": 125}
         with patch.object(main, "engine", fake_engine):
-            result = main.create_driving_record(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=125))
+            result = main.create_driving_record(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, start_km=25, km=125))
         query, params = connection.execute.call_args.args
         self.assertEqual(params["km"], 125)
         self.assertIn(":km", str(query))
@@ -147,7 +148,7 @@ class DrivingRecordTests(unittest.TestCase):
 
     def test_database_km_constraint(self):
         from sqlalchemy.exc import IntegrityError
-        for km in [0, -1, 10000]:
+        for km in [0, -1, 1000]:
             with self.subTest(km=km), self.assertRaises(IntegrityError):
                 with self.engine.begin() as conn:
                     conn.execute(text("UPDATE public.driving_records SET km=:km WHERE id=1"), {"km": km})
@@ -197,6 +198,15 @@ class DrivingRecordTests(unittest.TestCase):
         cleared=main.update_driving_record(1,main.DrivingRecordUpdate(shipper_name=" - "))
         self.assertIsNone(cleared['shipper_name'])
         self.assertEqual(cleared['carrier_name'],'운송사')
+
+
+    def test_start_km_separate_validation_and_mapping(self):
+        row=main.update_driving_record(1,main.DrivingRecordUpdate(start_km=25,km=999))
+        self.assertEqual(row['start_km'],25)
+        self.assertEqual(row['km'],999)
+        for value in [0,-1,1000,1.5,True,"12",None]:
+            with self.subTest(value=value),self.assertRaises(ValidationError):
+                main.DrivingRecordCreate(carrier_name="직접입력 운송사",charge_amount=100,start_km=value,km=125)
 
 
 if __name__ == "__main__":

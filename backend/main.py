@@ -79,7 +79,8 @@ class DrivingRecordUpdate(BaseModel):
     region_1: str | None = None
     region_2: str | None = None
     shipping_line: str | None = None
-    km: int | None = Field(default=None, strict=True, ge=1, le=9999)
+    start_km: int | None = Field(default=None, strict=True, ge=1, le=999)
+    km: int | None = Field(default=None, strict=True, ge=1, le=999)
     container_spec: str | None = Field(default=None, pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int | None = Field(default=None, strict=True, ge=0, le=9007199254740991)
@@ -100,7 +101,7 @@ class DrivingRecordUpdate(BaseModel):
         changes = self.model_dump(exclude_unset=True)
         if not changes:
             raise ValueError("수정할 항목을 하나 이상 보내세요.")
-        for field in ("operated_on", "carrier_name", "charge_amount", "container_spec", "km"):
+        for field in ("operated_on", "carrier_name", "charge_amount", "container_spec", "start_km", "km"):
             if field in changes and changes[field] is None:
                 raise ValueError(f"{field} 항목은 비울 수 없습니다.")
         return self
@@ -119,7 +120,7 @@ def update_driving_record(
         RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
-                  vehicle_number, recipient_name, km, created_at
+                  vehicle_number, recipient_name, start_km, km, created_at
     """)
     with engine.begin() as conn:
         row = conn.execute(query, {**values, "record_id": record_id}).mappings().one_or_none()
@@ -279,7 +280,8 @@ class DrivingRecordCreate(BaseModel):
     region_2: str | None = None
     category: str | None = None
     shipping_line: str | None = None
-    km: int = Field(strict=True, ge=1, le=9999)
+    start_km: int = Field(strict=True, ge=1, le=999)
+    km: int = Field(strict=True, ge=1, le=999)
     container_spec: str = Field(default="40", pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int = Field(strict=True, ge=0, le=9007199254740991)
@@ -302,17 +304,17 @@ def create_driving_record(record: DrivingRecordCreate):
         INSERT INTO public.driving_records (
             operated_on, carrier_name, shipper_name, region_1, region_2, category,
             shipping_line, container_spec, container_no, charge_amount,
-            tax_amount, memo, vehicle_number, recipient_name, km
+            tax_amount, memo, vehicle_number, recipient_name, start_km, km
         ) VALUES (
             COALESCE(:operated_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
             :carrier_name, :shipper_name, :region_1, :region_2, :category,
             :shipping_line, :container_spec, :container_no, :charge_amount,
-            :tax_amount, :memo, :vehicle_number, :recipient_name, :km
+            :tax_amount, :memo, :vehicle_number, :recipient_name, :start_km, :km
         )
         RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
-                  vehicle_number, recipient_name, km, created_at
+                  vehicle_number, recipient_name, start_km, km, created_at
     """)
     with engine.begin() as conn:
         row = conn.execute(query, record.model_dump()).mappings().one()
@@ -350,7 +352,7 @@ def get_driving_records(
         SELECT id, operated_on, category, carrier_name, shipper_name,
                region_1, region_2, shipping_line, container_spec,
                container_no, charge_amount, tax_amount, memo,
-               vehicle_number, recipient_name, km, created_at
+               vehicle_number, recipient_name, start_km, km, created_at
         FROM public.driving_records
         {period_filter}
         ORDER BY id

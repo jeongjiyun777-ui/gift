@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS public.driving_records (
     region_1 TEXT,
     region_2 TEXT,
     shipping_line TEXT,
-    km INTEGER CONSTRAINT driving_records_km_range CHECK (km BETWEEN 1 AND 9999),
+    start_km INTEGER CONSTRAINT driving_records_start_km_range CHECK (start_km BETWEEN 1 AND 999),
+    km INTEGER CONSTRAINT driving_records_km_range CHECK (km BETWEEN 1 AND 999),
     container_spec TEXT,
     container_no TEXT,
     charge_amount BIGINT NOT NULL CHECK (charge_amount >= 0),
@@ -76,7 +77,8 @@ COMMENT ON COLUMN public.driving_records.shipper_name IS '화주. 미입력은 N
 COMMENT ON COLUMN public.driving_records.carrier_name IS '운송사';
 COMMENT ON COLUMN public.driving_records.region_1 IS '원본에서 첫 번째 지역 열. 출발지 등 업무 의미는 검토 후 확정';
 COMMENT ON COLUMN public.driving_records.region_2 IS '원본에서 두 번째 지역 열. 도착지 등 업무 의미는 검토 후 확정';
-COMMENT ON COLUMN public.driving_records.km IS '운행거리(km), 1~9999 정수. 과거 미상 기록은 NULL';
+COMMENT ON COLUMN public.driving_records.km IS '출발지에서 도착지까지 거리(km), 1~999 정수. 과거 미상 기록은 NULL';
+COMMENT ON COLUMN public.driving_records.start_km IS '시작 지점에서 출발지까지 거리(km), 1~999 정수. 과거 미입력 NULL';
 COMMENT ON COLUMN public.driving_records.shipping_line IS '원본 라인. 문자열로 보존';
 COMMENT ON COLUMN public.driving_records.container_spec IS '원본 규격. 40 등의 값을 문자열로 보존';
 COMMENT ON COLUMN public.driving_records.container_no IS '원본 CNTR 컨테이너 번호. 영문과 숫자로 구성된 문자열';

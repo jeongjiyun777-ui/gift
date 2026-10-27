@@ -12,7 +12,8 @@ const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "shipper_name", label: "화주" },
   { key: "region_1", label: "지역 (출발지)" },
   { key: "region_2", label: "지역 (도착지)" },
-  { key: "km", label: "거리 (km)" },
+  { key: "start_km", label: "시작 지점 → 출발지 (km)" },
+  { key: "km", label: "출발지 → 도착지 (km)" },
   { key: "shipping_line", label: "라인" },
   { key: "container_spec", label: "규격" },
   { key: "container_no", label: "CNTR" },
@@ -42,8 +43,8 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
     for (const { key, type } of fields) {
       const value = values[key].trim();
       if (value === original[key].trim()) continue;
-      if (key === "km") {
-        if (!isValidKm(value)) { setError("운행거리는 1~9999km의 정수로 입력해 주세요."); return; }
+      if ((key === "km" || key === "start_km")) {
+        if (!isValidKm(value)) { setError("운행거리는 1~999km의 정수로 입력해 주세요."); return; }
         changes[key] = Number(value);
       } else if (type === "number" && value !== "") {
         const amount = Number(value);
@@ -83,8 +84,8 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
             <input id={`edit-${key}`} type={type ?? "text"} value={values[key]}
               required={["operated_on", "carrier_name", "charge_amount", "container_spec"].includes(key)}
               min={type === "number" ? "0" : undefined} step={type === "number" ? "1" : undefined}
-              inputMode={key === "km" ? "numeric" : undefined} maxLength={key === "km" ? 4 : undefined}
-              readOnly={key === "container_spec"} pattern={key === "km" ? "[1-9][0-9]{0,3}" : key === "container_no" ? "[A-Z]{4}[0-9]{7}" : undefined}
+              inputMode={(key === "km" || key === "start_km") ? "numeric" : undefined} maxLength={(key === "km" || key === "start_km") ? 3 : undefined}
+              readOnly={key === "container_spec"} pattern={(key === "km" || key === "start_km") ? "[1-9][0-9]{0,2}" : key === "container_no" ? "[A-Z]{4}[0-9]{7}" : undefined}
               onChange={(event) => setValues((previous) => ({ ...previous, [key]: key === "container_no" ? event.target.value.replace(/\s/g, "").toUpperCase() : event.target.value }))}
               className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 read-only:bg-slate-100" />
           </div>

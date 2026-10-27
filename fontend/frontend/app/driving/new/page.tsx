@@ -17,18 +17,21 @@ export default function NewDrivingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [carrier, setCarrier] = useState<string>("");
+  const [customCarrier, setCustomCarrier] = useState("");
   const [shipperName, setShipperName] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
+  const [startKm, setStartKm] = useState("");
   const [km, setKm] = useState("");
-  const carrierName = carrier.trim();
+  const carrierName = (carrier === "custom" ? customCarrier : carrier).trim();
 
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
 
   const handleCarrierChange = (value: string) => {
     setCarrier(value);
+    setCustomCarrier("");
     setOrigin("");
     setDestination("");
     setError("");
@@ -38,8 +41,8 @@ export default function NewDrivingPage() {
     event.preventDefault();
     if (saving) return;
     setError("");
-    if (!isValidKm(km)) {
-      setError("운행거리는 1~9999km의 정수로 입력해 주세요.");
+    if (!isValidKm(startKm) || !isValidKm(km)) {
+      setError("운행거리는 각 구간은 1~999km의 정수로 입력해 주세요.");
       return;
     }
     const amount = Number(chargeAmount);
@@ -57,6 +60,7 @@ export default function NewDrivingPage() {
           shipper_name: shipperName.trim() || null,
           region_1: origin.trim(),
           region_2: destination.trim(),
+          start_km: Number(startKm),
           km: Number(km),
           container_spec: CONTAINER_SPEC,
           container_no: containerNo || null,
@@ -83,7 +87,9 @@ export default function NewDrivingPage() {
             <select id="driving-carrier" required value={carrier} onChange={(event) => handleCarrierChange(event.target.value)} className={fieldClass}>
               <option value="">운송사 선택</option>
               {carriers.map((value) => <option key={value} value={value}>{value}</option>)}
+              <option value="custom">직접 입력</option>
             </select>
+            {carrier === "custom" && <input aria-label="운송사 직접 입력" required value={customCarrier} onChange={(event) => setCustomCarrier(event.target.value)} placeholder="운송사를 직접 입력해 주세요" className={`${fieldClass} mt-2`} />}
           </div>
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
@@ -99,10 +105,17 @@ export default function NewDrivingPage() {
               <input id="driving-destination" required disabled={!carrier} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={carrier ? "도착지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
           </div>
-          <div>
-            <label htmlFor="driving-km" className="mb-2 block font-semibold">거리 (km)</label>
-            <input id="driving-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,3}" maxLength={4} value={km} onChange={(event) => setKm(event.target.value)} placeholder="예: 125" aria-describedby="driving-km-hint" className={fieldClass} />
-            <p id="driving-km-hint" className="mt-2 text-sm text-slate-500">1~9999km의 정수로 입력해 주세요.</p>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="driving-start-km" className="mb-2 block font-semibold">시작 지점 → 출발지 (km)</label>
+              <input id="driving-start-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,2}" maxLength={3} value={startKm} onChange={(event) => setStartKm(event.target.value.replace(/[^0-9]/g, "").slice(0, 3))} placeholder="예: 25" className={fieldClass} />
+              <p className="mt-2 text-sm text-slate-500">시작 지점에서 출발지까지 · 1~999km</p>
+            </div>
+            <div>
+              <label htmlFor="driving-km" className="mb-2 block font-semibold">출발지 → 도착지 (km)</label>
+              <input id="driving-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,2}" maxLength={3} value={km} onChange={(event) => setKm(event.target.value.replace(/[^0-9]/g, "").slice(0, 3))} placeholder="예: 125" className={fieldClass} />
+              <p className="mt-2 text-sm text-slate-500">출발지에서 도착지까지 · 1~999km</p>
+            </div>
           </div>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
