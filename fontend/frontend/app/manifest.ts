@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "정정식 업무모음",
     description: "축의금과 운행기록을 간편하게 조회하고 기록하는 업무 노트",
     lang: "ko",
-    start_url: "/",
+    start_url: "/driving",
     scope: "/",
     display: "standalone",
     background_color: "#f8fafc",
