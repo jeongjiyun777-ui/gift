@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { REPAIR_API_URL } from "@/lib/repairRecords";
 
@@ -19,6 +19,9 @@ interface RepairForm {
 export default function RepairsPage() {
   const router = useRouter();
   const savingRef = useRef(false);
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
+  const [receiptName, setReceiptName] = useState("");
+  const [receiptError, setReceiptError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState<RepairForm>({
@@ -26,6 +29,22 @@ export default function RepairsPage() {
   });
   const [businessParts, setBusinessParts] = useState(["", "", ""]);
   const [cardChoice, setCardChoice] = useState("");
+
+  function handleReceiptPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || savingRef.current) return;
+    setReceiptError("");
+    if (!file.type.startsWith("image/")) {
+      setReceiptError("영수증 사진을 선택해 주세요.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setReceiptError("25MB 이하의 사진을 선택해 주세요.");
+      return;
+    }
+    setReceiptName(file.name);
+  }
 
   function updateField(field: keyof RepairForm, value: string) {
     setForm((previous) => ({ ...previous, [field]: value }));
@@ -89,8 +108,22 @@ export default function RepairsPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
-      <p className="text-2xl font-bold tracking-tight sm:text-3xl">수리 입력</p>
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-2xl font-bold tracking-tight sm:text-3xl">수리 입력</p>
+        <button type="button" disabled={saving} onClick={() => receiptInputRef.current?.click()}
+          aria-label="수리 영수증 촬영 또는 사진 선택" title="영수증 촬영 또는 사진 선택"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50">
+          <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+            <circle cx="12" cy="13" r="4" /><path d="M18 10h.01" />
+          </svg>
+          <span className="hidden sm:inline">영수증 촬영</span>
+        </button>
+        <input ref={receiptInputRef} type="file" accept="image/*" capture="environment" onChange={handleReceiptPhoto} disabled={saving} className="hidden" />
+      </div>
       <p className="mt-2 text-sm text-slate-500">영수증을 보고 수리 내역을 입력해 주세요.</p>
+      {receiptName && <p role="status" className="mt-3 break-all rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">선택한 사진: {receiptName} · 자동 인식은 준비 중입니다. 수리 내역은 직접 입력해 주세요.</p>}
+      {receiptError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{receiptError}</p>}
       <form onSubmit={handleSubmit} className="mt-7 space-y-5" aria-busy={saving}>
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <legend className="sr-only">수리 입력 정보</legend>
