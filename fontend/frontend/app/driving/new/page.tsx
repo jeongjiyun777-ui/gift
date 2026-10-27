@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { isValidKm } from "../../../lib/drivingRecords";
@@ -18,6 +18,13 @@ export default function NewDrivingPage() {
   const [error, setError] = useState("");
   const [carrier, setCarrier] = useState<string>("");
   const [customCarrier, setCustomCarrier] = useState("");
+  const [confirmedCarrier, setConfirmedCarrier] = useState("");
+  const customCarrierRef = useRef<HTMLInputElement | null>(null);
+  const carrierSelectRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    if (carrier === "custom") customCarrierRef.current?.focus();
+  }, [carrier]);
   const [shipperName, setShipperName] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
@@ -25,24 +32,42 @@ export default function NewDrivingPage() {
   const [chargeAmount, setChargeAmount] = useState<string>("");
   const [startKm, setStartKm] = useState("");
   const [km, setKm] = useState("");
-  const carrierName = (carrier === "custom" ? customCarrier : carrier).trim();
+  const carrierName = (carrier === "custom" ? "" : carrier === "custom-confirmed" ? confirmedCarrier : carrier).trim();
 
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
 
   const handleCarrierChange = (value: string) => {
     setCarrier(value);
-    setCustomCarrier("");
+    setCustomCarrier(value === "custom" ? confirmedCarrier : "");
     setOrigin("");
     setDestination("");
     setError("");
   };
 
+  function confirmCustomCarrier() {
+    const name = customCarrier.trim();
+    if (!name || name === "-") {
+      setError("운송사를 입력한 뒤 확인을 눌러 주세요.");
+      customCarrierRef.current?.focus();
+      return;
+    }
+    setConfirmedCarrier(name);
+    setCarrier("custom-confirmed");
+    setError("");
+    carrierSelectRef.current?.focus();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
+    if (carrier === "custom") {
+      setError("직접 입력한 운송사의 확인 버튼을 눌러 주세요.");
+      customCarrierRef.current?.focus();
+      return;
+    }
     setError("");
     if (!isValidKm(startKm) || !isValidKm(km)) {
-      setError("운행거리는 각 구간은 1~999km의 정수로 입력해 주세요.");
+      setError("각 구간의 운행거리는 1~999km의 정수로 입력해 주세요.");
       return;
     }
     const amount = Number(chargeAmount);
@@ -84,12 +109,26 @@ export default function NewDrivingPage() {
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
             <label htmlFor="driving-carrier" className="mb-2 block font-semibold">운송사</label>
-            <select id="driving-carrier" required value={carrier} onChange={(event) => handleCarrierChange(event.target.value)} className={fieldClass}>
+            <select ref={carrierSelectRef} id="driving-carrier" required value={carrier} onChange={(event) => handleCarrierChange(event.target.value)} className={fieldClass}>
               <option value="">운송사 선택</option>
               {carriers.map((value) => <option key={value} value={value}>{value}</option>)}
+              {confirmedCarrier && <option value="custom-confirmed">{confirmedCarrier}</option>}
               <option value="custom">직접 입력</option>
             </select>
-            {carrier === "custom" && <input aria-label="운송사 직접 입력" required value={customCarrier} onChange={(event) => setCustomCarrier(event.target.value)} placeholder="운송사를 직접 입력해 주세요" className={`${fieldClass} mt-2`} />}
+            {carrier === "custom" && (
+              <div className="mt-2 flex items-start gap-2">
+                <input ref={customCarrierRef} aria-label="운송사 직접 입력" required value={customCarrier} onChange={(event) => setCustomCarrier(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      confirmCustomCarrier();
+                    }
+                  }}
+                  placeholder="운송사를 직접 입력해 주세요" className={fieldClass} />
+                <button type="button" onClick={confirmCustomCarrier} disabled={!customCarrier.trim() || customCarrier.trim() === "-"}
+                  className="shrink-0 rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">확인</button>
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
@@ -98,11 +137,11 @@ export default function NewDrivingPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="driving-origin" className="mb-2 block font-semibold">출발지</label>
-              <input id="driving-origin" required disabled={!carrier} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={carrier ? "출발지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-origin" required disabled={!carrierName} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={carrierName ? "출발지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
             <div>
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
-              <input id="driving-destination" required disabled={!carrier} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={carrier ? "도착지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-destination" required disabled={!carrierName} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={carrierName ? "도착지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
