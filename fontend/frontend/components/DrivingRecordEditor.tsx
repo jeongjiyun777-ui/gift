@@ -8,6 +8,7 @@ type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at" | "calcula
 const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "operated_on", label: "일자", type: "date" },
   { key: "category", label: "구분" },
+  { key: "carrier_name", label: "운송사" },
   { key: "shipper_name", label: "화주" },
   { key: "region_1", label: "지역 (출발지)" },
   { key: "region_2", label: "지역 (도착지)" },
@@ -80,7 +81,7 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
           <div key={key}>
             <label htmlFor={`edit-${key}`} className="mb-1 block text-sm font-semibold">{label}</label>
             <input id={`edit-${key}`} type={type ?? "text"} value={values[key]}
-              required={["operated_on", "shipper_name", "charge_amount", "container_spec"].includes(key)}
+              required={["operated_on", "carrier_name", "charge_amount", "container_spec"].includes(key)}
               min={type === "number" ? "0" : undefined} step={type === "number" ? "1" : undefined}
               inputMode={key === "km" ? "numeric" : undefined} maxLength={key === "km" ? 4 : undefined}
               readOnly={key === "container_spec"} pattern={key === "km" ? "[1-9][0-9]{0,3}" : key === "container_no" ? "[A-Z]{4}[0-9]{7}" : undefined}

@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import DrivingRecordEditor from "../../components/DrivingRecordEditor";
 import { DRIVING_API_URL as API_URL, fetchDrivingRecords, fetchDrivingReport, type DrivingRecord, type DrivingTotals } from "../../lib/drivingRecords";
 const PAGE_SIZE = 10;
-const columns = ["일자", "구분", "운송사(화주)", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
+const columns = ["일자", "구분", "운송사", "화주", "지역", "지역", "거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"];
 
 function displayText(value: string | null) {
   return value?.trim() || "—";
@@ -237,7 +237,8 @@ export default function DrivingPage() {
                   <td className="text-center"><input type="checkbox" aria-label={`${record.id}번 운행기록 선택`} disabled={busy} checked={selectedIds.includes(String(record.id))} onChange={() => toggleSelection(String(record.id))} /></td>
                   <td className="whitespace-nowrap text-center">{record.operated_on}</td>
                   <td className="text-center">{displayText(record.category)}</td>
-                  <td className="font-medium">{record.shipper_name}</td>
+                  <td className="font-medium">{record.carrier_name?.trim() || "-"}</td>
+                  <td>{record.shipper_name?.trim() || "-"}</td>
                   <td>{displayText(record.region_1)}</td>
                   <td>{displayText(record.region_2)}</td>
                   <td className="text-center tabular-nums">{record.km == null ? "—" : record.km.toLocaleString("ko-KR")}</td>

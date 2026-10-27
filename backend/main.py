@@ -72,7 +72,8 @@ class DrivingRecordUpdate(BaseModel):
 
     operated_on: date | None = None
     category: str | None = None
-    shipper_name: str | None = Field(default=None, min_length=1)
+    carrier_name: str | None = Field(default=None, min_length=1)
+    shipper_name: str | None = None
     region_1: str | None = None
     region_2: str | None = None
     shipping_line: str | None = None
@@ -85,12 +86,19 @@ class DrivingRecordUpdate(BaseModel):
     vehicle_number: str | None = None
     recipient_name: str | None = None
 
+    @field_validator("shipper_name", mode="before")
+    @classmethod
+    def normalize_shipper(cls, value):
+        if isinstance(value, str):
+            return value.strip() if value.strip() not in ("", "-") else None
+        return value
+
     @model_validator(mode="after")
     def validate_changes(self):
         changes = self.model_dump(exclude_unset=True)
         if not changes:
             raise ValueError("수정할 항목을 하나 이상 보내세요.")
-        for field in ("operated_on", "shipper_name", "charge_amount", "container_spec", "km"):
+        for field in ("operated_on", "carrier_name", "charge_amount", "container_spec", "km"):
             if field in changes and changes[field] is None:
                 raise ValueError(f"{field} 항목은 비울 수 없습니다.")
         return self
@@ -106,7 +114,7 @@ def update_driving_record(
     query = text(f"""
         UPDATE public.driving_records SET {assignments}
         WHERE id = :record_id
-        RETURNING id, operated_on, category, shipper_name,
+        RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
                   vehicle_number, recipient_name, km, created_at
@@ -263,7 +271,8 @@ class DrivingRecordCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     operated_on: date | None = None
-    shipper_name: str = Field(min_length=1)
+    carrier_name: str = Field(min_length=1)
+    shipper_name: str | None = None
     region_1: str | None = None
     region_2: str | None = None
     category: str | None = None
@@ -277,21 +286,28 @@ class DrivingRecordCreate(BaseModel):
     vehicle_number: str | None = None
     recipient_name: str | None = None
 
+    @field_validator("shipper_name", mode="before")
+    @classmethod
+    def normalize_shipper(cls, value):
+        if isinstance(value, str):
+            return value.strip() if value.strip() not in ("", "-") else None
+        return value
+
 
 @app.post("/driving-records", status_code=201, summary="운행기록 저장")
 def create_driving_record(record: DrivingRecordCreate):
     query = text("""
         INSERT INTO public.driving_records (
-            operated_on, shipper_name, region_1, region_2, category,
+            operated_on, carrier_name, shipper_name, region_1, region_2, category,
             shipping_line, container_spec, container_no, charge_amount,
             tax_amount, memo, vehicle_number, recipient_name, km
         ) VALUES (
             COALESCE(:operated_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
-            :shipper_name, :region_1, :region_2, :category,
+            :carrier_name, :shipper_name, :region_1, :region_2, :category,
             :shipping_line, :container_spec, :container_no, :charge_amount,
             :tax_amount, :memo, :vehicle_number, :recipient_name, :km
         )
-        RETURNING id, operated_on, category, shipper_name,
+        RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
                   vehicle_number, recipient_name, km, created_at
@@ -329,7 +345,7 @@ def get_driving_records(
         params = {"start_date": start_date, "end_date": end_date}
         period_filter = "WHERE operated_on >= :start_date AND operated_on < :end_date"
     query = text(f"""
-        SELECT id, operated_on, category, shipper_name,
+        SELECT id, operated_on, category, carrier_name, shipper_name,
                region_1, region_2, shipping_line, container_spec,
                container_no, charge_amount, tax_amount, memo,
                vehicle_number, recipient_name, km, created_at

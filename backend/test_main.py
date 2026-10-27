@@ -27,7 +27,7 @@ class DrivingRecordTests(unittest.TestCase):
             conn.execute(text("""
                 CREATE TABLE public.driving_records (
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
-                    category TEXT, shipper_name TEXT NOT NULL,
+                    category TEXT, carrier_name TEXT NOT NULL, shipper_name TEXT,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
                     km INTEGER CHECK (km BETWEEN 1 AND 9999),
                     container_spec TEXT, container_no TEXT,
@@ -39,7 +39,7 @@ class DrivingRecordTests(unittest.TestCase):
             for record_id, operated_on in [(1, "2026-09-30"), (2, "2026-10-01")]:
                 conn.execute(text("""
                     INSERT INTO public.driving_records
-                    (id, operated_on, shipper_name, container_spec, charge_amount, memo, created_at)
+                    (id, operated_on, carrier_name, container_spec, charge_amount, memo, created_at)
                     VALUES (:id, :operated_on, '테스트 화주', '40', 357300, '기존 비고', '2026-10-23T00:00:00Z')
                 """), {"id": record_id, "operated_on": operated_on})
 
@@ -54,7 +54,7 @@ class DrivingRecordTests(unittest.TestCase):
         result = main.update_driving_record(1, changes)
         # 확인: 금액은 변경되고, 보내지 않은 열과 등록 시각은 유지됩니다.
         self.assertEqual(result["charge_amount"], 400000)
-        self.assertEqual(result["shipper_name"], "테스트 화주")
+        self.assertEqual(result["carrier_name"], "테스트 화주")
         self.assertEqual(result["memo"], "기존 비고")
         self.assertEqual(result["created_at"], "2026-10-23T00:00:00Z")
 
@@ -64,7 +64,7 @@ class DrivingRecordTests(unittest.TestCase):
 
     def test_all_business_fields_are_mapped(self):
         payload = dict(operated_on=date(2026, 9, 8), category="운송",
-                       shipper_name="검증 화주", region_1="출발", region_2="도착", km=125,
+                       carrier_name="검증 화주", region_1="출발", region_2="도착", km=125,
                        shipping_line="라인", container_spec="40", container_no="TEST1234567",
                        charge_amount=100000, tax_amount=10000, memo="확인",
                        vehicle_number="테스트차량", recipient_name="테스트수신인")
@@ -80,7 +80,7 @@ class DrivingRecordTests(unittest.TestCase):
 
     def test_invalid_patch_is_rejected(self):
         for payload in [{}, {"charge_amount": -1}, {"charge_amount": 1.5},
-                        {"shipper_name": " "}, {"operated_on": None},
+                        {"carrier_name": " "}, {"operated_on": None},
                         {"charge_amount": None}, {"id": 10},
                         {"container_no": "bad"}, {"container_spec": "20"}]:
             with self.subTest(payload=payload), self.assertRaises(ValidationError):
@@ -127,19 +127,19 @@ class DrivingRecordTests(unittest.TestCase):
             with self.subTest(km=km), self.assertRaises(ValidationError):
                 main.DrivingRecordUpdate(km=km)
         for km in [1, 9999]:
-            self.assertEqual(main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=km).km, km)
+            self.assertEqual(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=km).km, km)
         with self.assertRaises(ValidationError):
-            main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100)
+            main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100)
         for km in [0, -1, 10000, 1.5, "12", True, None]:
             with self.subTest(create_km=km), self.assertRaises(ValidationError):
-                main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=km)
+                main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=km)
 
     def test_create_passes_km_to_insert_and_response(self):
         fake_engine = MagicMock()
         connection = fake_engine.begin.return_value.__enter__.return_value
         connection.execute.return_value.mappings.return_value.one.return_value = {"id": 3, "km": 125}
         with patch.object(main, "engine", fake_engine):
-            result = main.create_driving_record(main.DrivingRecordCreate(shipper_name="테스트", charge_amount=100, km=125))
+            result = main.create_driving_record(main.DrivingRecordCreate(carrier_name="테스트", charge_amount=100, km=125))
         query, params = connection.execute.call_args.args
         self.assertEqual(params["km"], 125)
         self.assertIn(":km", str(query))
@@ -188,6 +188,15 @@ class DrivingRecordTests(unittest.TestCase):
     def test_driving_report_requires_year_and_month(self):
         route = main.app.openapi()["paths"]["/driving-records/report"]["get"]
         self.assertTrue(all(p["required"] for p in route["parameters"] if p["name"] in ("year","month")))
+
+
+    def test_separate_carrier_and_optional_shipper(self):
+        row=main.update_driving_record(1,main.DrivingRecordUpdate(carrier_name=" 운송사 ",shipper_name=" 화주 "))
+        self.assertEqual(row['carrier_name'],'운송사')
+        self.assertEqual(row['shipper_name'],'화주')
+        cleared=main.update_driving_record(1,main.DrivingRecordUpdate(shipper_name=" - "))
+        self.assertIsNone(cleared['shipper_name'])
+        self.assertEqual(cleared['carrier_name'],'운송사')
 
 
 if __name__ == "__main__":

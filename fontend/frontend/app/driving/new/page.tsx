@@ -9,25 +9,26 @@ import { isValidKm } from "../../../lib/drivingRecords";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 const CONTAINER_SPEC = "40";
-const shippers = ["삼성로지텍", "윤하운송"] as const;
+const carriers = ["삼성로지텍", "윤하운송"] as const;
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
 
 export default function NewDrivingPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [shipper, setShipper] = useState<string>("");
+  const [carrier, setCarrier] = useState<string>("");
+  const [shipperName, setShipperName] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [containerNo, setContainerNo] = useState<string>("");
   const [chargeAmount, setChargeAmount] = useState<string>("");
   const [km, setKm] = useState("");
-  const shipperName = shipper.trim();
+  const carrierName = carrier.trim();
 
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
 
-  const handleShipperChange = (value: string) => {
-    setShipper(value);
+  const handleCarrierChange = (value: string) => {
+    setCarrier(value);
     setOrigin("");
     setDestination("");
     setError("");
@@ -42,8 +43,8 @@ export default function NewDrivingPage() {
       return;
     }
     const amount = Number(chargeAmount);
-    if (!shipperName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
-      setError("운송사(화주)를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
+    if (!carrierName || !origin.trim() || !destination.trim() || containerHasError || !chargeAmount.trim() || !Number.isSafeInteger(amount) || amount < 0) {
+      setError("운송사를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
       return;
     }
     setSaving(true);
@@ -52,7 +53,8 @@ export default function NewDrivingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shipper_name: shipperName,
+          carrier_name: carrierName,
+          shipper_name: shipperName.trim() || null,
           region_1: origin.trim(),
           region_2: destination.trim(),
           km: Number(km),
@@ -73,24 +75,28 @@ export default function NewDrivingPage() {
   return (
       <section className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">운행기록 입력</h1>
-        <p className="mt-2 text-sm text-slate-500">운송사(화주)를 선택한 뒤 출발지와 도착지를 직접 입력해 주세요.</p>
+        <p className="mt-2 text-sm text-slate-500">운송사를 선택한 뒤 출발지와 도착지를 직접 입력해 주세요.</p>
         <form onSubmit={handleSubmit} className="mt-7">
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <div>
-            <label htmlFor="driving-shipper" className="mb-2 block font-semibold">운송사(화주)</label>
-            <select id="driving-shipper" required value={shipper} onChange={(event) => handleShipperChange(event.target.value)} className={fieldClass}>
-              <option value="">운송사(화주) 선택</option>
-              {shippers.map((value) => <option key={value} value={value}>{value}</option>)}
+            <label htmlFor="driving-carrier" className="mb-2 block font-semibold">운송사</label>
+            <select id="driving-carrier" required value={carrier} onChange={(event) => handleCarrierChange(event.target.value)} className={fieldClass}>
+              <option value="">운송사 선택</option>
+              {carriers.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
+          </div>
+          <div>
+            <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>
+            <input id="driving-shipper" value={shipperName} onChange={(event) => setShipperName(event.target.value)} placeholder="화주 입력 (선택)" className={fieldClass} />
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="driving-origin" className="mb-2 block font-semibold">출발지</label>
-              <input id="driving-origin" required disabled={!shipper} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={shipper ? "출발지를 입력해 주세요" : "운송사(화주)를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-origin" required disabled={!carrier} type="text" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={carrier ? "출발지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
             <div>
               <label htmlFor="driving-destination" className="mb-2 block font-semibold">도착지</label>
-              <input id="driving-destination" required disabled={!shipper} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={shipper ? "도착지를 입력해 주세요" : "운송사(화주)를 먼저 선택해 주세요"} className={fieldClass} />
+              <input id="driving-destination" required disabled={!carrier} type="text" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder={carrier ? "도착지를 입력해 주세요" : "운송사를 먼저 선택해 주세요"} className={fieldClass} />
             </div>
           </div>
           <div>
@@ -100,7 +106,7 @@ export default function NewDrivingPage() {
           </div>
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
-              {shipperName || "운송사(화주) 입력 중"} · {origin} → {destination}
+              {carrierName || "운송사 입력 중"} · {origin} → {destination}
             </p>
           )}
           <div>

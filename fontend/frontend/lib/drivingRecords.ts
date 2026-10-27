@@ -2,7 +2,8 @@ export interface DrivingRecord {
   id: number | string;
   operated_on: string;
   category: string | null;
-  shipper_name: string;
+  carrier_name: string;
+  shipper_name: string | null;
   region_1: string | null;
   region_2: string | null;
   shipping_line: string | null;

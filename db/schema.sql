@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS public.driving_records (
     operated_on DATE NOT NULL
         DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
     category TEXT,
-    shipper_name TEXT NOT NULL CHECK (length(btrim(shipper_name)) > 0),
+    carrier_name TEXT NOT NULL CHECK (length(btrim(carrier_name)) > 0),
+    shipper_name TEXT,
     region_1 TEXT,
     region_2 TEXT,
     shipping_line TEXT,
@@ -71,7 +72,8 @@ COMMENT ON TABLE public.driving_records IS '운행 거래명세서 내역. gift 
 COMMENT ON COLUMN public.driving_records.id IS '자동 생성되는 고유 번호. 삭제된 번호는 재사용하거나 재정렬하지 않음';
 COMMENT ON COLUMN public.driving_records.operated_on IS '원본 일자에 해당하는 실제 운행일. 생략하면 등록 당시 한국 날짜';
 COMMENT ON COLUMN public.driving_records.category IS '원본 구분. 빈 칸은 NULL';
-COMMENT ON COLUMN public.driving_records.shipper_name IS '원본 화주';
+COMMENT ON COLUMN public.driving_records.shipper_name IS '화주. 미입력은 NULL';
+COMMENT ON COLUMN public.driving_records.carrier_name IS '운송사';
 COMMENT ON COLUMN public.driving_records.region_1 IS '원본에서 첫 번째 지역 열. 출발지 등 업무 의미는 검토 후 확정';
 COMMENT ON COLUMN public.driving_records.region_2 IS '원본에서 두 번째 지역 열. 도착지 등 업무 의미는 검토 후 확정';
 COMMENT ON COLUMN public.driving_records.km IS '운행거리(km), 1~9999 정수. 과거 미상 기록은 NULL';
