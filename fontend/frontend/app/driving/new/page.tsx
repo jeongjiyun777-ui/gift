@@ -26,6 +26,7 @@ export default function NewDrivingPage() {
   useEffect(() => {
     if (carrier === "custom") customCarrierRef.current?.focus();
   }, [carrier]);
+  const [category, setCategory] = useState("");
   const [shipperName, setShipperName] = useState("");
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
@@ -90,6 +91,7 @@ export default function NewDrivingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          category: category || null,
           carrier_name: carrierName,
           shipper_name: shipperName.trim() || null,
           region_1: origin.trim(),
@@ -140,6 +142,14 @@ export default function NewDrivingPage() {
                   className="shrink-0 rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">확인</button>
               </div>
             )}
+          </div>
+          <div>
+            <p id="driving-category-label" className="mb-2 font-semibold">구분</p>
+            <select id="driving-category" aria-labelledby="driving-category-label" value={category} onChange={(event) => setCategory(event.target.value)} className={fieldClass}>
+              <option value="">구분 선택</option>
+              <option value="MT">MT</option>
+              <option value="FULL">FULL</option>
+            </select>
           </div>
           <div>
             <label htmlFor="driving-shipper" className="mb-2 block font-semibold">화주</label>

@@ -92,7 +92,7 @@ class DrivingRecordUpdate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     operated_on: date | None = None
-    category: str | None = None
+    category: Literal["MT", "FULL"] | None = None
     carrier_name: str | None = Field(default=None, min_length=1)
     shipper_name: str | None = None
     departure_time: time | None = None
@@ -109,6 +109,14 @@ class DrivingRecordUpdate(BaseModel):
     memo: str | None = None
     vehicle_number: str | None = None
     recipient_name: str | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def normalize_category(cls, value):
+        if isinstance(value, str):
+            value = value.strip().upper()
+            return None if value in ("", "-") else value
+        return value
 
     @field_validator("departure_time", "arrival_time", mode="before")
     @classmethod
@@ -306,7 +314,7 @@ class DrivingRecordCreate(BaseModel):
     arrival_time: time | None = None
     region_1: str | None = None
     region_2: str | None = None
-    category: str | None = None
+    category: Literal["MT", "FULL"] | None = None
     shipping_line: str | None = None
     start_km: int = Field(strict=True, ge=1, le=999)
     km: int = Field(strict=True, ge=1, le=999)
@@ -317,6 +325,14 @@ class DrivingRecordCreate(BaseModel):
     memo: str | None = None
     vehicle_number: str | None = None
     recipient_name: str | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def normalize_category(cls, value):
+        if isinstance(value, str):
+            value = value.strip().upper()
+            return None if value in ("", "-") else value
+        return value
 
     @field_validator("departure_time", "arrival_time", mode="before")
     @classmethod

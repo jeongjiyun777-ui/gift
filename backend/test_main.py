@@ -29,7 +29,7 @@ class DrivingRecordTests(unittest.TestCase):
                 CREATE TABLE public.driving_records (
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
                     departure_time TEXT, arrival_time TEXT,
-                    category TEXT, carrier_name TEXT NOT NULL, shipper_name TEXT,
+                    category TEXT CHECK (category IN ('MT','FULL')), carrier_name TEXT NOT NULL, shipper_name TEXT,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
                     start_km INTEGER CHECK (start_km BETWEEN 1 AND 999),
                     km INTEGER CHECK (km BETWEEN 1 AND 999),
@@ -66,7 +66,7 @@ class DrivingRecordTests(unittest.TestCase):
         self.assertIsNone(result["memo"])
 
     def test_all_business_fields_are_mapped(self):
-        payload = dict(operated_on=date(2026, 9, 8), category="운송",
+        payload = dict(operated_on=date(2026, 9, 8), category="MT",
                        carrier_name="검증 화주", region_1="출발", region_2="도착", km=125,
                        shipping_line="라인", container_spec="40", container_no="TEST1234567",
                        charge_amount=100000, tax_amount=10000, memo="확인",
@@ -227,6 +227,19 @@ class DrivingRecordTests(unittest.TestCase):
         for value in ['24:00','12:60','12:30:01','12:30+09:00',1234,True]:
             with self.subTest(value=value),self.assertRaises(ValidationError):
                 main.DrivingRecordUpdate(departure_time=value)
+
+
+    def test_mt_full_category_mapping_and_normalization(self):
+        for category in ['MT','FULL']:
+            row=main.update_driving_record(1,main.DrivingRecordUpdate(category=category.lower()))
+            self.assertEqual(row['category'],category)
+            self.assertEqual(main.get_driving_records(2026,9)[0]['category'],category)
+        self.assertIsNone(main.update_driving_record(1,main.DrivingRecordUpdate(category=" - "))['category'])
+        with self.assertRaises(ValidationError):main.DrivingRecordUpdate(category="OTHER")
+        from sqlalchemy.exc import IntegrityError
+        with self.assertRaises(IntegrityError):
+            with self.engine.begin() as conn:
+                conn.execute(text("UPDATE public.driving_records SET category='OTHER' WHERE id=1"))
 
 
 if __name__ == "__main__":

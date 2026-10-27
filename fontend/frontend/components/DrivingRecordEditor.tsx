@@ -87,6 +87,14 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
       <p className="mt-1 text-sm text-slate-600">변경한 항목만 저장합니다. 번호와 등록 시각은 유지됩니다.</p>
       <fieldset disabled={saving} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-60">
         {fields.map(({ key, label, type }) => (
+          key === "category" ? (
+            <div key={key}>
+              <p id="edit-category-label" className="mb-1 text-sm font-semibold">구분</p>
+              <select aria-labelledby="edit-category-label" value={values.category} onChange={(event) => setValues((previous) => ({ ...previous, category: event.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3">
+                <option value="">미입력</option><option value="MT">MT</option><option value="FULL">FULL</option>
+              </select>
+            </div>
+          ) :
           key === "departure_time" || key === "arrival_time" ? <DrivingTimeSelect key={key} id={`edit-${key}`} label={label} value={values[key]} onChange={(value) => setValues((previous) => ({ ...previous, [key]: value }))} /> :
           <div key={key}>
             <label htmlFor={`edit-${key}`} className="mb-1 block text-sm font-semibold">{label}</label>
