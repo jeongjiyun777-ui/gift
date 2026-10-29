@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.driving_records (
     vehicle_number TEXT,
     recipient_name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT driving_records_odometer_check CHECK ((start_odometer_km IS NULL AND pickup_odometer_km IS NULL AND arrival_odometer_km IS NULL) OR (start_odometer_km IS NOT NULL AND pickup_odometer_km IS NOT NULL AND arrival_odometer_km IS NOT NULL AND start_odometer_km >= 0 AND start_odometer_km <= pickup_odometer_km AND pickup_odometer_km <= arrival_odometer_km AND arrival_odometer_km <= 999999999))
+    CONSTRAINT driving_records_odometer_check CHECK ((start_odometer_km IS NULL AND pickup_odometer_km IS NULL AND arrival_odometer_km IS NULL) OR (start_odometer_km IS NOT NULL AND pickup_odometer_km IS NOT NULL AND arrival_odometer_km IS NOT NULL AND start_odometer_km >= 0 AND start_odometer_km <= pickup_odometer_km AND pickup_odometer_km <= arrival_odometer_km AND arrival_odometer_km <= 9999999))
 );
 
 CREATE TABLE IF NOT EXISTS public.paid_gifts (

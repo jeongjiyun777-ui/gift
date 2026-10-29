@@ -92,16 +92,16 @@ ODOMETER_FIELDS = ("start_odometer_km", "pickup_odometer_km", "arrival_odometer_
 
 
 def odometer_distances(start: int, pickup: int, arrival: int) -> dict:
-    if not 0 <= start <= pickup <= arrival <= 999999999:
+    if not 0 <= start <= pickup <= arrival <= 9999999:
         raise ValueError("누적 km는 시작 지점 ≤ 출발지 ≤ 도착지 순서로 입력하세요.")
     return {"start_km": pickup - start, "km": arrival - pickup, "total_distance_km": arrival - start}
 
 
 class OdometerTrip(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    start_odometer_km: int = Field(strict=True, ge=0, le=999999999)
-    pickup_odometer_km: int = Field(strict=True, ge=0, le=999999999)
-    arrival_odometer_km: int = Field(strict=True, ge=0, le=999999999)
+    start_odometer_km: int = Field(strict=True, ge=0, le=9999999)
+    pickup_odometer_km: int = Field(strict=True, ge=0, le=9999999)
+    arrival_odometer_km: int = Field(strict=True, ge=0, le=9999999)
 
     @model_validator(mode="after")
     def validate_order(self):
@@ -137,9 +137,9 @@ class DrivingRecordUpdate(BaseModel):
     shipping_line: str | None = None
     start_km: int | None = Field(default=None, strict=True, ge=1, le=999)
     km: int | None = Field(default=None, strict=True, ge=1, le=999)
-    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
-    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
-    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
+    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
+    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
     container_spec: str | None = Field(default=None, pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int | None = Field(default=None, strict=True, ge=0, le=9007199254740991)
@@ -374,9 +374,9 @@ class DrivingRecordCreate(BaseModel):
     shipping_line: str | None = None
     start_km: int | None = Field(default=None, strict=True, ge=1, le=999)
     km: int | None = Field(default=None, strict=True, ge=1, le=999)
-    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
-    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
-    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
+    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
+    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=9999999)
     container_spec: str = Field(default="40", pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int = Field(strict=True, ge=0, le=9007199254740991)

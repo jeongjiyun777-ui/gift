@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { DRIVING_API_URL as API_URL } from "../../../lib/drivingRecords";
+import { DRIVING_API_URL as API_URL, type DrivingOdometerReadings } from "../../../lib/drivingRecords";
 
 
 
@@ -47,7 +47,7 @@ export default function NewDrivingPage() {
         if (!response.ok) throw new Error("누적거리 조회 실패");
         const vehicle: { current_odometer_km: string | number } = await response.json();
         const km = Number(vehicle.current_odometer_km);
-        if (!Number.isSafeInteger(km) || km < 0 || km > 999999999) throw new Error("누적거리 형식 오류");
+        if (!Number.isSafeInteger(km) || km < 0 || km > 9999999) throw new Error("누적거리 형식 오류");
         if (!controller.signal.aborted && !odometerEdited.current) setOdometers((previous) => ({ ...previous, start_odometer_km: String(km) }));
       } catch {
         if (!controller.signal.aborted) setOdometerNotice("현재 누적거리를 불러오지 못했습니다. 시작 지점 누적 km를 직접 입력해 주세요.");
@@ -106,6 +106,11 @@ export default function NewDrivingPage() {
       setError("운송사를 선택하고 출발지·도착지, 컨테이너 번호와 공급가액을 확인해 주세요.");
       return;
     }
+    const readingsPayload: DrivingOdometerReadings = {
+      start_odometer_km: Number(odometers.start_odometer_km),
+      pickup_odometer_km: Number(odometers.pickup_odometer_km),
+      arrival_odometer_km: Number(odometers.arrival_odometer_km),
+    };
     setSaving(true);
     try {
       const response = await fetch(`${API_URL}/driving-records`, {
@@ -119,9 +124,7 @@ export default function NewDrivingPage() {
           region_2: destination.trim(),
           departure_time: departureTime.replace(":", "") ? departureTime : null,
           arrival_time: arrivalTime.replace(":", "") ? arrivalTime : null,
-          start_odometer_km: Number(odometers.start_odometer_km),
-          pickup_odometer_km: Number(odometers.pickup_odometer_km),
-          arrival_odometer_km: Number(odometers.arrival_odometer_km),
+          ...readingsPayload,
           vehicle_number: "98사3343",
           container_spec: CONTAINER_SPEC,
           container_no: containerNo || null,

@@ -1,3 +1,10 @@
+/** API에 전송하는 계기판 누적 km. 각 값은 0~9,999,999 정수입니다. */
+export interface DrivingOdometerReadings {
+  start_odometer_km: number;
+  pickup_odometer_km: number;
+  arrival_odometer_km: number;
+}
+
 export interface DrivingRecord {
   id: number | string;
   operated_on: string;

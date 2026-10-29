@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DRIVING_API_URL } from "@/lib/drivingRecords";
+import { DRIVING_API_URL, type DrivingOdometerReadings } from "@/lib/drivingRecords";
 
 export interface OdometerValues {
   start_odometer_km: string;
@@ -10,7 +10,7 @@ export interface OdometerValues {
 }
 interface DistanceResult { start_km: number; km: number; total_distance_km: number }
 export const EMPTY_ODOMETERS: OdometerValues = { start_odometer_km: "", pickup_odometer_km: "", arrival_odometer_km: "" };
-export const isOdometer = (value: string) => /^\d{1,9}$/.test(value);
+export const isOdometer = (value: string) => /^\d{1,7}$/.test(value);
 
 export default function DrivingOdometerInputs({ values, onChange }: { values: OdometerValues; onChange: (values: OdometerValues) => void }) {
   const [result, setResult] = useState<{ key: string; distances?: DistanceResult; error?: string } | null>(null);
@@ -28,7 +28,7 @@ export default function DrivingOdometerInputs({ values, onChange }: { values: Od
       try {
         const response = await fetch(`${DRIVING_API_URL}/driving-records/distance`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ start_odometer_km: Number(start), pickup_odometer_km: Number(pickup), arrival_odometer_km: Number(arrival) }), signal: controller.signal,
+          body: JSON.stringify({ start_odometer_km: Number(start), pickup_odometer_km: Number(pickup), arrival_odometer_km: Number(arrival) } satisfies DrivingOdometerReadings), signal: controller.signal,
         });
         if (!response.ok) throw new Error("거리 계산에 실패했습니다. 서버 배포 상태를 확인해 주세요.");
         const distances: DistanceResult = await response.json();
@@ -51,13 +51,13 @@ export default function DrivingOdometerInputs({ values, onChange }: { values: Od
         ] as const).map(([field, label]) => (
           <div key={field}>
             <label htmlFor={`driving-${field}`} className="mb-2 block font-semibold">{label}</label>
-            <input id={`driving-${field}`} inputMode="numeric" pattern="[0-9]{1,9}" maxLength={9} value={values[field]}
-              onChange={(event) => onChange({ ...values, [field]: event.target.value.replace(/[^0-9]/g, "").slice(0, 9) })}
+            <input id={`driving-${field}`} inputMode="numeric" pattern="[0-9]{1,7}" maxLength={7} value={values[field]}
+              onChange={(event) => onChange({ ...values, [field]: event.target.value.replace(/[^0-9]/g, "").slice(0, 7) })}
               placeholder="예: 664951" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base" />
           </div>
         ))}
       </div>
-      <p className="text-sm text-slate-500">계기판 누적 km를 정수로 입력해 주세요. 구간 거리는 서버에서 계산합니다.</p>
+      <p className="text-sm text-slate-500">계기판 누적 km를 최대 7자리 정수로 입력해 주세요. 구간 거리는 서버에서 계산합니다.</p>
       {complete && !ordered && <p role="alert" className="text-sm text-red-700">시작 지점 ≤ 출발지 ≤ 도착지 순서로 입력해 주세요.</p>}
       {ordered && <div role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-base text-slate-700">
         {shown?.error ? <p className="text-red-700">{shown.error}</p> : shown?.distances ? <div className="flex flex-wrap gap-x-6 gap-y-2">

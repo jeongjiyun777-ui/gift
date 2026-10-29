@@ -287,5 +287,12 @@ class DrivingRecordTests(unittest.TestCase):
             self.assertIsNotNone(raw['odometer_recorded_at'])
 
 
+    def test_odometer_seven_digit_limit(self):
+        self.assertEqual(main.OdometerTrip(start_odometer_km=9999997,pickup_odometer_km=9999998,arrival_odometer_km=9999999).arrival_odometer_km,9999999)
+        for model in (main.OdometerTrip,main.DrivingRecordUpdate):
+            with self.subTest(model=model),self.assertRaises(ValidationError):
+                model(start_odometer_km=664951,pickup_odometer_km=665000,arrival_odometer_km=10000000)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
