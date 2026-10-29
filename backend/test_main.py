@@ -29,6 +29,7 @@ class DrivingRecordTests(unittest.TestCase):
                 CREATE TABLE public.driving_records (
                     id INTEGER PRIMARY KEY, operated_on DATE NOT NULL,
                     departure_time TEXT, arrival_time TEXT,
+                    start_odometer_km BIGINT, pickup_odometer_km BIGINT, arrival_odometer_km BIGINT, odometer_recorded_at TEXT,
                     category TEXT CHECK (category IN ('MT','FULL')), carrier_name TEXT NOT NULL, shipper_name TEXT,
                     region_1 TEXT, region_2 TEXT, shipping_line TEXT,
                     start_km INTEGER CHECK (start_km BETWEEN 1 AND 999),
@@ -36,7 +37,7 @@ class DrivingRecordTests(unittest.TestCase):
                     container_spec TEXT, container_no TEXT,
                     charge_amount BIGINT NOT NULL, tax_amount BIGINT,
                     memo TEXT, vehicle_number TEXT, recipient_name TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """))
             for record_id, operated_on in [(1, "2026-09-30"), (2, "2026-10-01")]:
@@ -240,6 +241,50 @@ class DrivingRecordTests(unittest.TestCase):
         with self.assertRaises(IntegrityError):
             with self.engine.begin() as conn:
                 conn.execute(text("UPDATE public.driving_records SET category='OTHER' WHERE id=1"))
+
+
+    def test_odometer_preview_example_and_zero_distance(self):
+        trip=main.OdometerTrip(start_odometer_km=664951,pickup_odometer_km=665000,arrival_odometer_km=665100)
+        self.assertEqual(main.preview_driving_distance(trip),{"start_km":49,"km":100,"total_distance_km":149})
+        self.assertEqual(main.odometer_distances(0,0,0),{"start_km":0,"km":0,"total_distance_km":0})
+        self.assertEqual(main.odometer_distances(100,100,2100)['km'],2000)
+
+    def test_odometer_patch_merged_validation_and_timestamp(self):
+        row=main.update_driving_record(1,main.DrivingRecordUpdate(start_odometer_km=664951,pickup_odometer_km=665000,arrival_odometer_km=665100))
+        self.assertEqual((row['start_km'],row['km'],row['total_distance_km']),(49,100,149))
+        self.assertIsNotNone(row['odometer_recorded_at'])
+        for changes in [dict(arrival_odometer_km=664999),dict(pickup_odometer_km=None),dict(km=50)]:
+            with self.subTest(changes=changes),self.assertRaises(HTTPException) as caught:
+                main.update_driving_record(1,main.DrivingRecordUpdate(**changes))
+            self.assertEqual(caught.exception.status_code,422)
+        self.assertEqual(main.get_driving_records(2026,9)[0]['arrival_odometer_km'],665100)
+        row=main.update_driving_record(1,main.DrivingRecordUpdate(arrival_odometer_km=665200))
+        self.assertEqual(row['total_distance_km'],249)
+
+    def test_odometer_validation_rejects_decimal_reverse_and_incomplete(self):
+        valid=dict(carrier_name="운송사",charge_amount=100,start_odometer_km=664951,pickup_odometer_km=665000,arrival_odometer_km=665100)
+        for field,value in [('start_odometer_km',664951.1),('start_odometer_km',-1),('start_odometer_km',True),('arrival_odometer_km',664900),('arrival_odometer_km',None),('pickup_odometer_km','665000')]:
+            with self.subTest(field=field,value=value),self.assertRaises(ValidationError):
+                main.DrivingRecordCreate(**(valid|{field:value}))
+        with self.assertRaises(ValidationError):
+            main.DrivingRecordCreate(**valid,start_km=1,km=2)
+
+    def test_odometer_create_real_insert_and_get(self):
+        from sqlalchemy import event
+        def sqlite_today(conn,cursor,statement,parameters,context,executemany):
+            return statement.replace("(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date","date('now')"),parameters
+        event.listen(self.engine,'before_cursor_execute',sqlite_today,retval=True)
+        try:
+            row=main.create_driving_record(main.DrivingRecordCreate(carrier_name="운송사",charge_amount=100,start_odometer_km=664951,pickup_odometer_km=665000,arrival_odometer_km=665100))
+        finally:
+            event.remove(self.engine,'before_cursor_execute',sqlite_today)
+        self.assertEqual(row['total_distance_km'],149)
+        self.assertEqual(row['start_km'],49)
+        with self.engine.connect() as conn:
+            raw=conn.execute(text("SELECT * FROM public.driving_records WHERE id=:id"),{'id':row['id']}).mappings().one()
+            self.assertIsNone(raw['km'])
+            self.assertEqual(raw['arrival_odometer_km'],665100)
+            self.assertIsNotNone(raw['odometer_recorded_at'])
 
 
 if __name__ == "__main__":

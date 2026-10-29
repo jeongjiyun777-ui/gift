@@ -88,6 +88,41 @@ def normalize_driving_time(value):
     return value
 
 
+ODOMETER_FIELDS = ("start_odometer_km", "pickup_odometer_km", "arrival_odometer_km")
+
+
+def odometer_distances(start: int, pickup: int, arrival: int) -> dict:
+    if not 0 <= start <= pickup <= arrival <= 999999999:
+        raise ValueError("누적 km는 시작 지점 ≤ 출발지 ≤ 도착지 순서로 입력하세요.")
+    return {"start_km": pickup - start, "km": arrival - pickup, "total_distance_km": arrival - start}
+
+
+class OdometerTrip(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start_odometer_km: int = Field(strict=True, ge=0, le=999999999)
+    pickup_odometer_km: int = Field(strict=True, ge=0, le=999999999)
+    arrival_odometer_km: int = Field(strict=True, ge=0, le=999999999)
+
+    @model_validator(mode="after")
+    def validate_order(self):
+        odometer_distances(self.start_odometer_km, self.pickup_odometer_km, self.arrival_odometer_km)
+        return self
+
+
+@app.post("/driving-records/distance", summary="누적 km 세 값으로 구간·총거리 계산 (저장 안 함)")
+def preview_driving_distance(trip: OdometerTrip):
+    return odometer_distances(trip.start_odometer_km, trip.pickup_odometer_km, trip.arrival_odometer_km)
+
+
+@app.get("/vehicles/odometer", summary="차량 현재 누적 주행거리 조회")
+def get_vehicle_odometer(vehicle_number: str = "98사3343"):
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT vehicle_number,current_odometer_km,odometer_recorded_at FROM public.vehicle_records WHERE vehicle_number=:vehicle"), {"vehicle":vehicle_number.strip()}).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="차량 누적 주행거리가 없습니다.")
+    return dict(row)
+
+
 class DrivingRecordUpdate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -102,6 +137,9 @@ class DrivingRecordUpdate(BaseModel):
     shipping_line: str | None = None
     start_km: int | None = Field(default=None, strict=True, ge=1, le=999)
     km: int | None = Field(default=None, strict=True, ge=1, le=999)
+    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
     container_spec: str | None = Field(default=None, pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int | None = Field(default=None, strict=True, ge=0, le=9007199254740991)
@@ -147,20 +185,38 @@ def update_driving_record(
 ):
     # 모델에 선언된 열만 사용하고, 값은 SQL 파라미터로 전달합니다.
     values = changes.model_dump(exclude_unset=True)
+    odometer_changed = any(key in values for key in ODOMETER_FIELDS)
     assignments = ", ".join(f"{column} = :{column}" for column in values)
+    if odometer_changed:
+        assignments += ", odometer_recorded_at = CURRENT_TIMESTAMP"
     query = text(f"""
         UPDATE public.driving_records SET {assignments}
         WHERE id = :record_id
         RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
-                  vehicle_number, recipient_name, start_km, km, created_at
+                  vehicle_number, recipient_name, start_km, km, start_odometer_km, pickup_odometer_km, arrival_odometer_km, odometer_recorded_at, created_at
     """)
     with engine.begin() as conn:
+        lock = " FOR UPDATE" if conn.dialect.name == "postgresql" else ""
+        current = conn.execute(text("SELECT * FROM public.driving_records WHERE id=:id" + lock), {"id":record_id}).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="운행기록이 없습니다.")
+        merged = {**dict(current), **values}
+        readings = [merged.get(key) for key in ODOMETER_FIELDS]
+        if any(value is not None for value in readings):
+            if any(value is None for value in readings):
+                raise HTTPException(status_code=422, detail="누적 km 세 값을 모두 입력하세요.")
+            try:
+                odometer_distances(*readings)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            if "start_km" in values or "km" in values:
+                raise HTTPException(status_code=422, detail="누적 km를 수정하세요. 구간 거리는 서버에서 계산합니다.")
         row = conn.execute(query, {**values, "record_id": record_id}).mappings().one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail="운행기록이 없습니다.")
-    return dict(row)
+    return driving_distances(dict(row))
 
 
 class DrivingRecordDelete(BaseModel):
@@ -316,8 +372,11 @@ class DrivingRecordCreate(BaseModel):
     region_2: str | None = None
     category: Literal["MT", "FULL"] | None = None
     shipping_line: str | None = None
-    start_km: int = Field(strict=True, ge=1, le=999)
-    km: int = Field(strict=True, ge=1, le=999)
+    start_km: int | None = Field(default=None, strict=True, ge=1, le=999)
+    km: int | None = Field(default=None, strict=True, ge=1, le=999)
+    start_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    pickup_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
+    arrival_odometer_km: int | None = Field(default=None, strict=True, ge=0, le=999999999)
     container_spec: str = Field(default="40", pattern=r"^40$")
     container_no: str | None = Field(default=None, pattern=r"^[A-Z]{4}[0-9]{7}$")
     charge_amount: int = Field(strict=True, ge=0, le=9007199254740991)
@@ -347,31 +406,54 @@ class DrivingRecordCreate(BaseModel):
         return value
 
 
+    @model_validator(mode="after")
+    def validate_distance_source(self):
+        readings = [getattr(self, key) for key in ODOMETER_FIELDS]
+        if any(value is not None for value in readings):
+            if any(value is None for value in readings):
+                raise ValueError("누적 km 세 값을 모두 입력하세요.")
+            odometer_distances(*readings)
+            if self.start_km is not None or self.km is not None:
+                raise ValueError("누적 km 입력 시 구간 거리는 서버에서 계산합니다.")
+        elif self.start_km is None or self.km is None:
+            raise ValueError("누적 km 세 값을 모두 입력하세요.")
+        return self
+
+
 @app.post("/driving-records", status_code=201, summary="운행기록 저장")
 def create_driving_record(record: DrivingRecordCreate):
     query = text("""
         INSERT INTO public.driving_records (
             operated_on, carrier_name, shipper_name, region_1, region_2, departure_time, arrival_time, category,
             shipping_line, container_spec, container_no, charge_amount,
-            tax_amount, memo, vehicle_number, recipient_name, start_km, km
+            tax_amount, memo, vehicle_number, recipient_name, start_km, km, start_odometer_km, pickup_odometer_km, arrival_odometer_km, odometer_recorded_at
         ) VALUES (
             COALESCE(:operated_on, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),
             :carrier_name, :shipper_name, :region_1, :region_2, :departure_time, :arrival_time, :category,
             :shipping_line, :container_spec, :container_no, :charge_amount,
-            :tax_amount, :memo, :vehicle_number, :recipient_name, :start_km, :km
+            :tax_amount, :memo, :vehicle_number, :recipient_name, :start_km, :km, :start_odometer_km, :pickup_odometer_km, :arrival_odometer_km, CASE WHEN :start_odometer_km IS NOT NULL THEN CURRENT_TIMESTAMP ELSE NULL END
         )
         RETURNING id, operated_on, category, carrier_name, shipper_name,
                   region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                   container_no, charge_amount, tax_amount, memo,
-                  vehicle_number, recipient_name, start_km, km, created_at
+                  vehicle_number, recipient_name, start_km, km, start_odometer_km, pickup_odometer_km, arrival_odometer_km, odometer_recorded_at, created_at
     """)
     with engine.begin() as conn:
         row = conn.execute(query, record.model_dump()).mappings().one()
-    return dict(row)
+    return driving_distances(dict(row))
+
+
+def driving_distances(record: dict) -> dict:
+    readings = [record.get(key) for key in ODOMETER_FIELDS]
+    if all(value is not None for value in readings):
+        return {**record, **odometer_distances(*readings)}
+    start, km = record.get("start_km"), record.get("km")
+    return {**record, "total_distance_km": start + km if start is not None and km is not None else None}
 
 
 def driving_amounts(record: dict) -> dict:
     # 입력값과 DB 저장값은 유지하고 조회용 세액·합계금액만 계산합니다.
+    record = driving_distances(record)
     charge = int(record["charge_amount"])
     tax = int((Decimal(charge) * Decimal("0.1")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     return {**record, "calculated_tax_amount": str(tax), "total_amount": str(charge + tax)}
@@ -401,7 +483,7 @@ def get_driving_records(
         SELECT id, operated_on, category, carrier_name, shipper_name,
                region_1, region_2, departure_time, arrival_time, shipping_line, container_spec,
                container_no, charge_amount, tax_amount, memo,
-               vehicle_number, recipient_name, start_km, km, created_at
+               vehicle_number, recipient_name, start_km, km, start_odometer_km, pickup_odometer_km, arrival_odometer_km, odometer_recorded_at, created_at
         FROM public.driving_records
         {period_filter}
         ORDER BY id

@@ -9,6 +9,11 @@ export interface DrivingRecord {
   shipping_line: string | null;
   departure_time: string | null;
   arrival_time: string | null;
+  start_odometer_km: number | null;
+  pickup_odometer_km: number | null;
+  arrival_odometer_km: number | null;
+  odometer_recorded_at: string | null;
+  total_distance_km: number | null;
   start_km: number | null;
   km: number | null;
   container_spec: string | null;

@@ -8,6 +8,7 @@ export interface DrivingExcelRecord {
   region_2: string | null;
   departure_time: string | null;
   arrival_time: string | null;
+  total_distance_km: number | null;
   start_km?: number | null;
   km?: number | null;
   shipping_line: string | null;
@@ -31,15 +32,15 @@ export async function createDrivingWorkbook(records: DrivingExcelRecord[]) {
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
   const sheet = workbook.addWorksheet("운행기록");
-  sheet.addRow(["번호", "일자", "구분", "운송사", "화주", "지역", "지역", "출발시각", "도착시각", "시작 → 출발지 (km)", "출발지 → 도착지 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"]);
+  sheet.addRow(["번호", "일자", "구분", "운송사", "화주", "지역", "지역", "출발시각", "도착시각", "시작 → 출발지 (km)", "출발지 → 도착지 (km)", "총거리 (km)", "라인", "규격", "CNTR", "공급가액", "세액", "합계금액", "비고"]);
   for (const record of records) {
     sheet.addRow([
       String(record.id), record.operated_on, record.category, record.carrier_name || "-", record.shipper_name || "-",
-      record.region_1, record.region_2, record.departure_time?.slice(0, 5) || "-", record.arrival_time?.slice(0, 5) || "-", record.start_km ?? null, record.km ?? null, record.shipping_line, record.container_spec,
+      record.region_1, record.region_2, record.departure_time?.slice(0, 5) || "-", record.arrival_time?.slice(0, 5) || "-", record.start_km ?? null, record.km ?? null, record.total_distance_km ?? null, record.shipping_line, record.container_spec,
       record.container_no, excelAmount(record.charge_amount), excelAmount(record.calculated_tax_amount), excelAmount(record.total_amount), record.memo,
     ]);
   }
-  const widths = [10, 15, 12, 20, 20, 20, 20, 14, 14, 22, 22, 14, 10, 20, 18, 18, 20, 30];
+  const widths = [10, 15, 12, 20, 20, 20, 20, 14, 14, 22, 22, 18, 14, 10, 20, 18, 18, 20, 30];
   sheet.columns.forEach((column, index) => { column.width = widths[index]; });
   sheet.getRow(1).eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF107C41" } };
@@ -47,10 +48,10 @@ export async function createDrivingWorkbook(records: DrivingExcelRecord[]) {
     cell.alignment = { horizontal: "center", vertical: "middle" };
   });
   sheet.getRow(1).height = 25;
-  sheet.getColumn(15).numFmt = "#,##0";
   sheet.getColumn(16).numFmt = "#,##0";
   sheet.getColumn(17).numFmt = "#,##0";
+  sheet.getColumn(18).numFmt = "#,##0";
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:R1";
+  sheet.autoFilter = "A1:S1";
   return new Uint8Array(await workbook.xlsx.writeBuffer()).buffer;
 }

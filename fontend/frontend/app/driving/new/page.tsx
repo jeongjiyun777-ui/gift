@@ -1,13 +1,14 @@
 "use client";
 
+import DrivingOdometerInputs, { EMPTY_ODOMETERS, isOdometer } from "@/components/DrivingOdometerInputs";
 import DrivingTimeSelect from "@/components/DrivingTimeSelect";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { isValidKm } from "../../../lib/drivingRecords";
+import { DRIVING_API_URL as API_URL } from "../../../lib/drivingRecords";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
 
 const CONTAINER_SPEC = "40";
 const carriers = ["삼성로지텍", "윤하운송"] as const;
@@ -34,8 +35,27 @@ export default function NewDrivingPage() {
   const [chargeAmount, setChargeAmount] = useState<string>("");
   const [departureTime, setDepartureTime] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
-  const [startKm, setStartKm] = useState("");
-  const [km, setKm] = useState("");
+  const [odometers, setOdometers] = useState({ ...EMPTY_ODOMETERS });
+  const odometerEdited = useRef(false);
+  const [odometerNotice, setOdometerNotice] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadOdometer() {
+      try {
+        const response = await fetch(`${API_URL}/vehicles/odometer`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("누적거리 조회 실패");
+        const vehicle: { current_odometer_km: string | number } = await response.json();
+        const km = Number(vehicle.current_odometer_km);
+        if (!Number.isSafeInteger(km) || km < 0 || km > 999999999) throw new Error("누적거리 형식 오류");
+        if (!controller.signal.aborted && !odometerEdited.current) setOdometers((previous) => ({ ...previous, start_odometer_km: String(km) }));
+      } catch {
+        if (!controller.signal.aborted) setOdometerNotice("현재 누적거리를 불러오지 못했습니다. 시작 지점 누적 km를 직접 입력해 주세요.");
+      }
+    }
+    void loadOdometer();
+    return () => controller.abort();
+  }, []);
   const carrierName = (carrier === "custom" ? "" : carrier === "custom-confirmed" ? confirmedCarrier : carrier).trim();
 
   const containerHasError = containerNo.length > 0 && !/^[A-Z]{4}[0-9]{7}$/.test(containerNo);
@@ -70,8 +90,9 @@ export default function NewDrivingPage() {
       return;
     }
     setError("");
-    if (!isValidKm(startKm) || !isValidKm(km)) {
-      setError("각 구간의 운행거리는 1~999km의 정수로 입력해 주세요.");
+    const readings = Object.values(odometers);
+    if (!readings.every(isOdometer) || Number(odometers.start_odometer_km) > Number(odometers.pickup_odometer_km) || Number(odometers.pickup_odometer_km) > Number(odometers.arrival_odometer_km)) {
+      setError("누적 km 세 값을 시작 지점 ≤ 출발지 ≤ 도착지 순서의 정수로 입력해 주세요.");
       return;
     }
     for (const value of [departureTime, arrivalTime]) {
@@ -98,8 +119,10 @@ export default function NewDrivingPage() {
           region_2: destination.trim(),
           departure_time: departureTime.replace(":", "") ? departureTime : null,
           arrival_time: arrivalTime.replace(":", "") ? arrivalTime : null,
-          start_km: Number(startKm),
-          km: Number(km),
+          start_odometer_km: Number(odometers.start_odometer_km),
+          pickup_odometer_km: Number(odometers.pickup_odometer_km),
+          arrival_odometer_km: Number(odometers.arrival_odometer_km),
+          vehicle_number: "98사3343",
           container_spec: CONTAINER_SPEC,
           container_no: containerNo || null,
           charge_amount: amount,
@@ -169,18 +192,8 @@ export default function NewDrivingPage() {
             <DrivingTimeSelect id="driving-departure" label="출발시각" value={departureTime} onChange={setDepartureTime} />
             <DrivingTimeSelect id="driving-arrival" label="도착시각" value={arrivalTime} onChange={setArrivalTime} />
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="driving-start-km" className="mb-2 block font-semibold">시작 지점 → 출발지 (km)</label>
-              <input id="driving-start-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,2}" maxLength={3} value={startKm} onChange={(event) => setStartKm(event.target.value.replace(/[^0-9]/g, "").slice(0, 3))} placeholder="예: 25" className={fieldClass} />
-              <p className="mt-2 text-sm text-slate-500">시작 지점에서 출발지까지 · 1~999km</p>
-            </div>
-            <div>
-              <label htmlFor="driving-km" className="mb-2 block font-semibold">출발지 → 도착지 (km)</label>
-              <input id="driving-km" type="text" inputMode="numeric" required pattern="[1-9][0-9]{0,2}" maxLength={3} value={km} onChange={(event) => setKm(event.target.value.replace(/[^0-9]/g, "").slice(0, 3))} placeholder="예: 125" className={fieldClass} />
-              <p className="mt-2 text-sm text-slate-500">출발지에서 도착지까지 · 1~999km</p>
-            </div>
-          </div>
+          <DrivingOdometerInputs values={odometers} onChange={(values) => { odometerEdited.current = true; setOdometers(values); }} />
+          {odometerNotice && <p role="status" className="text-sm text-slate-500">{odometerNotice}</p>}
           {destination && (
             <p role="status" className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
               {carrierName || "운송사 입력 중"} · {origin} → {destination}

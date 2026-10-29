@@ -1,11 +1,12 @@
 "use client";
 
+import DrivingOdometerInputs, { EMPTY_ODOMETERS, isOdometer } from "./DrivingOdometerInputs";
 import DrivingTimeSelect from "./DrivingTimeSelect";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { DRIVING_API_URL, isValidKm, type DrivingRecord } from "../lib/drivingRecords";
 
-type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at" | "calculated_tax_amount" | "total_amount">;
+type EditableField = Exclude<keyof DrivingRecord, "id" | "created_at" | "calculated_tax_amount" | "total_amount" | "start_odometer_km" | "pickup_odometer_km" | "arrival_odometer_km" | "odometer_recorded_at" | "total_distance_km">;
 const fields: { key: EditableField; label: string; type?: string }[] = [
   { key: "operated_on", label: "일자", type: "date" },
   { key: "category", label: "구분" },
@@ -35,6 +36,13 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
   record: DrivingRecord; onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [values, setValues] = useState(() => formValues(record));
+  const [odometers, setOdometers] = useState(() => ({
+    ...EMPTY_ODOMETERS,
+    start_odometer_km: record.start_odometer_km == null ? "" : String(record.start_odometer_km),
+    pickup_odometer_km: record.pickup_odometer_km == null ? "" : String(record.pickup_odometer_km),
+    arrival_odometer_km: record.arrival_odometer_km == null ? "" : String(record.arrival_odometer_km),
+  }));
+  const hasOdometers = record.start_odometer_km != null || Object.values(odometers).some(Boolean);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,6 +52,7 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
     const original = formValues(record);
     const changes: Record<string, string | number | null> = {};
     for (const { key, type } of fields) {
+      if (hasOdometers && (key === "start_km" || key === "km")) continue;
       const value = values[key].trim();
       if (value === original[key].trim()) continue;
       if (key === "departure_time" || key === "arrival_time") {
@@ -63,6 +72,14 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
         changes[key] = amount;
       } else {
         changes[key] = value || null;
+      }
+    }
+    if (hasOdometers) {
+      if (!Object.values(odometers).every(isOdometer) || Number(odometers.start_odometer_km) > Number(odometers.pickup_odometer_km) || Number(odometers.pickup_odometer_km) > Number(odometers.arrival_odometer_km)) {
+        setError("누적 km 세 값을 순서대로 모두 입력해 주세요."); return;
+      }
+      for (const key of ["start_odometer_km", "pickup_odometer_km", "arrival_odometer_km"] as const) {
+        if (Number(odometers[key]) !== record[key]) changes[key] = Number(odometers[key]);
       }
     }
     if (!Object.keys(changes).length) { setError("변경한 항목이 없습니다."); return; }
@@ -86,7 +103,7 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
       <h2 id="driving-edit-title" className="text-lg font-bold">운행기록 수정 · 번호 {record.id}</h2>
       <p className="mt-1 text-sm text-slate-600">변경한 항목만 저장합니다. 번호와 등록 시각은 유지됩니다.</p>
       <fieldset disabled={saving} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-60">
-        {fields.map(({ key, label, type }) => (
+        {fields.filter(({ key }) => !hasOdometers || (key !== "start_km" && key !== "km")).map(({ key, label, type }) => (
           key === "category" ? (
             <div key={key}>
               <p id="edit-category-label" className="mb-1 text-sm font-semibold">구분</p>
@@ -107,6 +124,7 @@ export default function DrivingRecordEditor({ record, onClose, onSaved }: {
               className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 read-only:bg-slate-100" />
           </div>
         ))}
+        <div className="sm:col-span-2 lg:col-span-3"><DrivingOdometerInputs values={odometers} onChange={setOdometers} /></div>
       </fieldset>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 flex justify-end gap-3">
